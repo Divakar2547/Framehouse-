@@ -17,7 +17,7 @@ describe('P0-5 & P0-6: Gallery Creation, Publishing, and Customer Access', () =>
     // 1. Authenticate admin
     const adminRes = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'admin@example.com', password: 'Admin@123456' });
+      .send({ email: 'admin@framehouse.com', password: 'Admin@123456' });
     adminToken = adminRes.headers['set-cookie'];
 
     // 2. Authenticate team member

@@ -49,7 +49,7 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       name: 'Arjun Sharma',
-      email: 'admin@example.com',
+      email: 'admin@framehouse.com',
       passwordHash: adminPassword,
       role: 'ADMIN',
       isActive: true,
@@ -431,7 +431,7 @@ async function main() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('Demo Credentials:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Admin:        admin@example.com / Admin@123456');
+  console.log('Admin:        admin@framehouse.com / Admin@123456');
   console.log('Photographer: photographer@example.com / Member@123456');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('Demo Gallery:');

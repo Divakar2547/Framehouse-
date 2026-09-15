@@ -16,7 +16,7 @@ describe('P0-1 & P0-2 & P0-3: Photo Upload and Sharp Processing', () => {
     // 1. Authenticate admin
     const adminRes = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'admin@example.com', password: 'Admin@123456' });
+      .send({ email: 'admin@framehouse.com', password: 'Admin@123456' });
     adminToken = adminRes.headers['set-cookie'];
 
     // 2. Authenticate assigned team member

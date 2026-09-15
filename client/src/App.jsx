@@ -97,9 +97,9 @@ function Login({ register = false }) {
       </div>
       <form className="auth-form" onSubmit={submit}>
         <div>
-          <span className="kicker">{register ? 'Create workspace' : 'Welcome back'}</span>
-          <h2>{register ? 'Start your next story.' : 'Good to see you again.'}</h2>
-          <p className="muted">{register ? 'Your team’s private studio starts here.' : 'Sign in to pick up where you left off.'}</p>
+          <span className="kicker">{register ? 'Join Team' : 'Welcome back'}</span>
+          <h2>{register ? 'Create Member Account' : 'Good to see you again.'}</h2>
+          <p className="muted">{register ? 'Join the workspace as a team member / photographer.' : 'Sign in to pick up where you left off.'}</p>
         </div>
         {register && (
           <label>
@@ -117,11 +117,11 @@ function Login({ register = false }) {
         </label>
         {error && <div className="form-error">{error}</div>}
         <button className="primary-button" disabled={busy}>
-          {busy ? 'One moment...' : register ? 'Create account' : 'Sign in'}
+          {busy ? 'One moment...' : register ? 'Create Member Account' : 'Sign in'}
           <ChevronRight size={17} />
         </button>
         <button type="button" className="text-button" onClick={() => navigate(register ? '/login' : '/register')}>
-          {register ? 'Already have an account? Sign in' : 'New to Framehouse? Create an account'}
+          {register ? 'Already have an account? Sign in' : 'New team member? Create an account'}
         </button>
       </form>
     </div>
