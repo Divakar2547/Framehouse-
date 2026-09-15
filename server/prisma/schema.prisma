@@ -1,0 +1,271 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String    @default("TEAM_MEMBER")
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  ownedEvents    Event[]         @relation("EventOwner")
+  eventMembers   EventMember[]
+  uploadedPhotos Photo[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+
+  @@map("users")
+}
+
+model Event {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  eventDate   DateTime
+  location    String?
+  coverPhoto  String?
+  status      String      @default("UPCOMING")
+  ownerId     String      @db.ObjectId
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  owner     User          @relation("EventOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   EventMember[]
+  photos    Photo[]
+  galleries Gallery[]
+  auditLogs AuditLog[]
+
+  @@index([ownerId])
+  @@index([eventDate])
+  @@index([status])
+  @@map("events")
+}
+
+model EventMember {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId    String   @db.ObjectId
+  userId     String   @db.ObjectId
+  assignedAt DateTime @default(now())
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_members")
+}
+
+model Photo {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId             String   @db.ObjectId
+  uploadedById        String   @db.ObjectId
+  filename            String
+  originalFilename    String
+  storageKey          String
+  galleryStorageKey   String?
+  thumbnailStorageKey String?
+  mediumStorageKey    String?
+  mimeType            String
+  fileSize            BigInt
+  width               Int?
+  height              Int?
+  checksum            String
+  status              String   @default("UPLOADING")
+  isSelected          Boolean  @default(false)
+  uploadBatchId       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  uploadedBy    User            @relation(fields: [uploadedById], references: [id])
+  galleryPhotos GalleryPhoto[]
+  downloads     PhotoDownload[]
+  favorites     PhotoFavorite[]
+
+  @@index([eventId])
+  @@index([uploadedById])
+  @@index([status])
+  @@index([isSelected])
+  @@index([createdAt])
+  @@index([checksum, eventId])
+  @@map("photos")
+}
+
+model Gallery {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId        String    @db.ObjectId
+  title          String
+  description    String?
+  slug           String    @unique
+  pinHash        String
+  status         String    @default("DRAFT")
+  isPublished    Boolean   @default(false)
+  publishedAt    DateTime?
+  expiresAt      DateTime?
+  allowDownloads Boolean   @default(false)
+  showWatermark  Boolean   @default(false)
+  watermarkText  String?
+  viewCount      Int       @default(0)
+  downloadCount  Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photos         GalleryPhoto[]
+  accessSessions GalleryAccess[]
+  views          GalleryView[]
+  downloads      PhotoDownload[]
+  favorites      PhotoFavorite[]
+
+  @@index([eventId])
+  @@index([isPublished])
+  @@index([status])
+  @@map("galleries")
+}
+
+model GalleryPhoto {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  galleryId String   @db.ObjectId
+  photoId   String   @db.ObjectId
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  // Relations
+  gallery Gallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photo   Photo   @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([galleryId, photoId])
+  @@index([galleryId])
+  @@index([photoId])
+  @@index([galleryId, sortOrder])
+  @@map("gallery_photos")
+}
+
+model GalleryAccess {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  galleryId        String   @db.ObjectId
+  sessionTokenHash String   @unique
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime @default(now())
+
+  // Relations
+  gallery   Gallery         @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  favorites PhotoFavorite[]
+
+  @@index([galleryId])
+  @@index([expiresAt])
+  @@map("gallery_access")
+}
+
+model PhotoFavorite {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  galleryId String   @db.ObjectId
+  photoId   String   @db.ObjectId
+  sessionId String?  @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Relations
+  gallery       Gallery        @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photo         Photo          @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  galleryAccess GalleryAccess? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([galleryId, photoId, sessionId])
+  @@index([galleryId, sessionId])
+  @@map("photo_favorites")
+}
+
+model GalleryView {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  galleryId String   @db.ObjectId
+  sessionId String?
+  ipHash    String?
+  userAgent String?
+  viewedAt  DateTime @default(now())
+
+  // Relations
+  gallery Gallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([viewedAt])
+  @@map("gallery_views")
+}
+
+model PhotoDownload {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  galleryId    String   @db.ObjectId
+  photoId      String   @db.ObjectId
+  sessionId    String?
+  downloadedAt DateTime @default(now())
+
+  // Relations
+  gallery Gallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photo   Photo   @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([photoId])
+  @@index([downloadedAt])
+  @@map("photo_downloads")
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  eventId   String?  @db.ObjectId
+  action    String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  title     String
+  message   String
+  type      String   @default("info")
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
