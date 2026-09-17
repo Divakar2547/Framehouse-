@@ -57,33 +57,35 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', environment: env.NODE_ENV, timestamp: new Date().toISOString() });
 });
 
-// Mock S3 upload and view endpoints for local testing/demo
-app.put('/api/mock-upload/:key(*)', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
-  mockStorage.set(req.params.key, req.body);
-  res.status(200).send('OK');
-});
+// Mock S3 upload and view endpoints for local testing/demo only
+if (!env.isProduction) {
+  app.put('/api/mock-upload/:key(*)', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
+    mockStorage.set(req.params.key, req.body);
+    res.status(200).send('OK');
+  });
 
-app.get('/api/mock-view/:key(*)', async (req, res) => {
-  try {
-    const key = req.params.key;
-    let buf = mockStorage.get(key);
-    if (!buf) {
-      const { getObjectBuffer } = await import('./services/s3.service.js');
-      buf = await getObjectBuffer(key);
-    }
-    if (buf) {
-      if (req.query.download === '1') {
-        const filename = req.query.filename || 'photo.jpg';
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+  app.get('/api/mock-view/:key(*)', async (req, res) => {
+    try {
+      const key = req.params.key;
+      let buf = mockStorage.get(key);
+      if (!buf) {
+        const { getObjectBuffer } = await import('./services/s3.service.js');
+        buf = await getObjectBuffer(key);
       }
-      res.type('image/jpeg').send(buf);
-    } else {
-      res.status(404).send('Not found');
+      if (buf) {
+        if (req.query.download === '1') {
+          const filename = req.query.filename || 'photo.jpg';
+          res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+        }
+        res.type('image/jpeg').send(buf);
+      } else {
+        res.status(404).send('Not found');
+      }
+    } catch (err) {
+      res.status(500).send('Error loading image');
     }
-  } catch (err) {
-    res.status(500).send('Error loading image');
-  }
-});
+  });
+}
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 

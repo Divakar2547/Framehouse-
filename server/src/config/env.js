@@ -27,6 +27,37 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'),
   RATE_LIMIT_MAX: z.string().default('100'),
   PIN_RATE_LIMIT_MAX: z.string().default('5'),
+}).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (!data.AWS_S3_BUCKET || data.AWS_S3_BUCKET.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AWS_S3_BUCKET'],
+        message: 'AWS_S3_BUCKET is required in production. Local storage fallback is disabled.',
+      });
+    }
+    if (!data.AWS_ACCESS_KEY_ID || data.AWS_ACCESS_KEY_ID.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AWS_ACCESS_KEY_ID'],
+        message: 'AWS_ACCESS_KEY_ID is required in production.',
+      });
+    }
+    if (!data.AWS_SECRET_ACCESS_KEY || data.AWS_SECRET_ACCESS_KEY.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AWS_SECRET_ACCESS_KEY'],
+        message: 'AWS_SECRET_ACCESS_KEY is required in production.',
+      });
+    }
+    if (!data.AWS_REGION || data.AWS_REGION.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AWS_REGION'],
+        message: 'AWS_REGION is required in production.',
+      });
+    }
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -35,6 +66,10 @@ if (!parsed.success) {
   if (process.env.NODE_ENV !== 'test') {
     console.error('❌ Invalid environment variables:');
     console.error(parsed.error.flatten().fieldErrors);
+  }
+  if (process.env.NODE_ENV === 'production') {
+    const errorDetails = JSON.stringify(parsed.error.flatten().fieldErrors, null, 2);
+    throw new Error(`Production environment configuration error: Missing required AWS S3 configuration.\n${errorDetails}`);
   }
 }
 

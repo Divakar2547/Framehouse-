@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { 
-  Camera, ChevronRight, FolderOpen, Image, LayoutDashboard, LogOut, Plus, Search, 
+  Camera, ChevronLeft, ChevronRight, FolderOpen, Image, LayoutDashboard, LogOut, Plus, Search, 
   ShieldCheck, Sparkles, Users, X, UploadCloud, CheckCircle2, AlertCircle, 
-  ExternalLink, Copy, Check, Lock, UserPlus, UserMinus, BarChart3, Download, Heart
+  ExternalLink, Copy, Check, Lock, UserPlus, UserMinus, BarChart3, Download, Heart,
+  Eye, EyeOff
 } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from './context/AuthContext';
@@ -65,6 +66,7 @@ function Login({ register = false }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -111,10 +113,28 @@ function Login({ register = false }) {
           Email
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
         </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} required />
-        </label>
+        <div className="form-field">
+          <label htmlFor="auth-password">Password</label>
+          <div className="password-input-wrapper">
+            <input
+              id="auth-password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              minLength={8}
+              required
+            />
+            <button
+              type="button"
+              className="password-toggle-button"
+              onClick={() => setShowPassword(prev => !prev)}
+              title={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+        </div>
         {error && <div className="form-error">{error}</div>}
         <button className="primary-button" disabled={busy}>
           {busy ? 'One moment...' : register ? 'Create Member Account' : 'Sign in'}
@@ -713,11 +733,14 @@ function PublishModal({ eventId, availablePhotos, selectedPhotoIds, onClose, onP
   );
 }
 
+const PAGE_LIMIT = 24;
+
 function EventDetail() {
   const { eventId = '' } = useParams();
   const { user } = useAuth();
   const { data, isLoading, refetch } = useQuery({ queryKey: ['event', eventId], queryFn: () => eventApi.get(eventId) });
   const [selected, setSelected] = useState([]);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -727,15 +750,20 @@ function EventDetail() {
   const [statusBusy, setStatusBusy] = useState(false);
 
   const photosQuery = useQuery({
-    queryKey: ['photos', eventId, search, sortBy, sortOrder],
+    queryKey: ['photos', eventId, page, search, sortBy, sortOrder],
     queryFn: () => eventApi.photos(eventId, { 
+      page,
+      limit: PAGE_LIMIT,
       search: search || undefined, 
-      limit: 300,
       sortBy,
       sortOrder
     }),
   });
   const photos = photosQuery.data?.data?.photos ?? [];
+  const pagination = photosQuery.data?.pagination;
+  const currentPage = pagination?.page ?? page;
+  const totalPages = pagination?.totalPages ?? 1;
+  const totalPhotos = pagination?.total ?? (photosQuery.data?.data?.photos?.length ?? 0);
 
   const toggle = (id) => setSelected(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
 
@@ -808,7 +836,7 @@ function EventDetail() {
       </header>
 
       <div className="event-summary">
-        <Stat label="Total photos" value={String(event._count?.photos ?? photos.length)} icon={<Image />} />
+        <Stat label="Total photos" value={String(event._count?.photos ?? totalPhotos)} icon={<Image />} />
         <Stat label="Selected" value={String(photos.filter(p => p.isSelected).length)} icon={<ShieldCheck />} />
         <Stat label="Assigned Team" value={String(event.members?.length ?? 0)} icon={<Users />} />
       </div>
@@ -816,10 +844,21 @@ function EventDetail() {
       <div className="toolbar">
         <div className="search">
           <Search size={17} />
-          <input placeholder="Search photo filename or number (e.g. 34)..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input 
+            placeholder="Search photo filename or number (e.g. 34)..." 
+            value={search} 
+            onChange={e => {
+              setSearch(e.target.value);
+              setPage(1);
+            }} 
+          />
         </div>
         <div className="toolbar-right">
-          <span className="muted">Showing {photos.length} photos</span>
+          <span className="muted">
+            {photos.length > 0 
+              ? `Showing ${photos.length} of ${totalPhotos} photos${totalPages > 1 ? ` (Page ${currentPage} of ${totalPages})` : ''}` 
+              : '0 photos'}
+          </span>
           {isAdmin && selected.length > 0 && (
             <div className="selection-actions">
               <button className="secondary-button compact" onClick={() => apply(false)}>Deselect</button>
@@ -829,19 +868,51 @@ function EventDetail() {
         </div>
       </div>
 
-      <div className="photo-grid">
-        {photos.map(photo => (
-          <PhotoTile key={photo.id} photo={photo} selected={selected.includes(photo.id)} onClick={() => toggle(photo.id)} />
-        ))}
-      </div>
-      {!photos.length && (
+      {photosQuery.isLoading ? (
+        <div className="empty-state">Loading photos...</div>
+      ) : photos.length > 0 ? (
+        <>
+          <div className="photo-grid">
+            {photos.map(photo => (
+              <PhotoTile key={photo.id} photo={photo} selected={selected.includes(photo.id)} onClick={() => toggle(photo.id)} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="pagination-bar">
+              <button 
+                type="button"
+                className="secondary-button compact"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={currentPage <= 1 || photosQuery.isFetching}
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={16} /> Previous
+              </button>
+              <span className="pagination-info">
+                Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+              </span>
+              <button 
+                type="button"
+                className="secondary-button compact"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages || photosQuery.isFetching}
+                aria-label="Next page"
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
         <div className="empty-state">
           <Image size={32} />
-          <h3>No photos in this event yet.</h3>
-          <p>Upload high-resolution files to begin curation.</p>
-          <button className="primary-button" onClick={() => setShowUpload(true)}>
-            <UploadCloud size={16} /> Upload Photos Now
-          </button>
+          <h3>{search ? 'No matching photos found.' : 'No photos in this event yet.'}</h3>
+          <p>{search ? 'Try adjusting your search query.' : 'Upload high-resolution files to begin curation.'}</p>
+          {!search && (
+            <button className="primary-button" onClick={() => setShowUpload(true)}>
+              <UploadCloud size={16} /> Upload Photos Now
+            </button>
+          )}
         </div>
       )}
 

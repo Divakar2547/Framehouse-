@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
+    "build": "prisma generate",
     "start": "node src/server.js",
     "lint": "eslint src --ext .js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --testTimeout=30000",

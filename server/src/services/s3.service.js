@@ -14,9 +14,15 @@ import { env } from '../config/env.js';
 
 const STORAGE_DIR = path.resolve(process.cwd(), 'storage');
 
-// Ensure local storage directory exists
-if (!fs.existsSync(STORAGE_DIR)) {
+// Ensure local storage directory exists in development/test
+if (!env.isProduction && !fs.existsSync(STORAGE_DIR)) {
   fs.mkdirSync(STORAGE_DIR, { recursive: true });
+}
+
+function assertLocalStorageAllowed() {
+  if (env.isProduction) {
+    throw new Error('Local disk storage fallback is forbidden in production. AWS S3 must be configured.');
+  }
 }
 
 function getLocalFilePath(key) {
@@ -24,12 +30,14 @@ function getLocalFilePath(key) {
   return path.join(STORAGE_DIR, cleanKey);
 }
 
-// In-memory + persistent disk storage
+// In-memory + persistent disk storage (development/test only)
 export const mockStorage = {
   has(key) {
+    assertLocalStorageAllowed();
     return fs.existsSync(getLocalFilePath(key));
   },
   get(key) {
+    assertLocalStorageAllowed();
     const filePath = getLocalFilePath(key);
     if (fs.existsSync(filePath)) {
       return fs.readFileSync(filePath);
@@ -37,6 +45,7 @@ export const mockStorage = {
     return null;
   },
   set(key, buffer) {
+    assertLocalStorageAllowed();
     const filePath = getLocalFilePath(key);
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -45,6 +54,7 @@ export const mockStorage = {
     fs.writeFileSync(filePath, Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
   },
   delete(key) {
+    assertLocalStorageAllowed();
     const filePath = getLocalFilePath(key);
     if (fs.existsSync(filePath)) {
       try {
@@ -80,6 +90,7 @@ export async function generateUploadPresignedUrl(
   expiresIn = 900
 ) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-upload/${encodeURIComponent(key)}`;
   }
 
@@ -102,6 +113,7 @@ export async function generateDownloadPresignedUrl(
   expiresIn = 600
 ) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-view/${encodeURIComponent(key)}?download=1&filename=${encodeURIComponent(originalFilename || 'photo.jpg')}`;
   }
 
@@ -123,6 +135,7 @@ export async function generateViewPresignedUrl(
   expiresIn = 3600
 ) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-view/${encodeURIComponent(key)}`;
   }
 
@@ -139,6 +152,7 @@ export async function generateViewPresignedUrl(
  */
 export async function getObjectBuffer(key) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     if (mockStorage.has(key)) {
       return mockStorage.get(key);
     }
@@ -180,6 +194,7 @@ export async function uploadBuffer(
   metadata
 ) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     mockStorage.set(key, buffer);
     return;
   }
@@ -200,6 +215,7 @@ export async function uploadBuffer(
  */
 export async function deleteObject(key) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     mockStorage.delete(key);
     return;
   }
@@ -219,6 +235,7 @@ export async function deleteObjects(keys) {
   if (keys.length === 0) return;
 
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     for (const k of keys) mockStorage.delete(k);
     return;
   }
@@ -247,6 +264,7 @@ export async function deleteObjects(keys) {
  */
 export async function objectExists(key) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+    assertLocalStorageAllowed();
     return mockStorage.has(key);
   }
 

@@ -44,7 +44,6 @@ async function main() {
   // ─── Users ────────────────────────────────────────────────────────────────
 
   const adminPassword = await bcrypt.hash('Admin@123456', 12);
-  const memberPassword = await bcrypt.hash('Member@123456', 12);
 
   const admin = await prisma.user.create({
     data: {
@@ -57,57 +56,7 @@ async function main() {
     },
   });
 
-  const photographer1 = await prisma.user.create({
-    data: {
-      name: 'Priya Patel',
-      email: 'photographer@example.com',
-      passwordHash: memberPassword,
-      role: 'TEAM_MEMBER',
-      isActive: true,
-    },
-  });
-
-  const photographer2 = await prisma.user.create({
-    data: {
-      name: 'Rahul Verma',
-      email: 'rahul@example.com',
-      passwordHash: memberPassword,
-      role: 'TEAM_MEMBER',
-      isActive: true,
-    },
-  });
-
-  const photographer3 = await prisma.user.create({
-    data: {
-      name: 'Sneha Gupta',
-      email: 'sneha@example.com',
-      passwordHash: memberPassword,
-      role: 'TEAM_MEMBER',
-      isActive: true,
-    },
-  });
-
-  const photographer4 = await prisma.user.create({
-    data: {
-      name: 'Kiran Mehta',
-      email: 'kiran@example.com',
-      passwordHash: memberPassword,
-      role: 'TEAM_MEMBER',
-      isActive: true,
-    },
-  });
-
-  const photographer5 = await prisma.user.create({
-    data: {
-      name: 'Ananya Singh',
-      email: 'ananya@example.com',
-      passwordHash: memberPassword,
-      role: 'TEAM_MEMBER',
-      isActive: true,
-    },
-  });
-
-  console.log('✅ Created users:', [admin, photographer1, photographer2, photographer3, photographer4, photographer5].map(u => u.email));
+  console.log('✅ Created admin user:', admin.email);
 
   // ─── Events ───────────────────────────────────────────────────────────────
 
@@ -146,37 +95,19 @@ async function main() {
 
   console.log('✅ Created events');
 
-  // ─── Event Members ────────────────────────────────────────────────────────
-
-  await safeCreateMany(prisma.eventMember, [
-    { eventId: weddingEvent.id, userId: photographer1.id },
-    { eventId: weddingEvent.id, userId: photographer2.id },
-    { eventId: weddingEvent.id, userId: photographer3.id },
-    { eventId: weddingEvent.id, userId: photographer4.id },
-    { eventId: weddingEvent.id, userId: photographer5.id },
-    { eventId: corporateEvent.id, userId: photographer1.id },
-    { eventId: corporateEvent.id, userId: photographer2.id },
-    { eventId: birthdayEvent.id, userId: photographer3.id },
-    { eventId: birthdayEvent.id, userId: photographer4.id },
-  ]);
-
-  console.log('✅ Assigned team members to events');
-
   // ─── Photos ───────────────────────────────────────────────────────────────
 
-  const photographers = [photographer1, photographer2, photographer3, photographer4, photographer5];
   const photoData = [];
   const batchId1 = uuidv4();
   const batchId2 = uuidv4();
 
   for (let i = 1; i <= 120; i++) {
-    const uploader = photographers[i % photographers.length];
     const batchId = i <= 60 ? batchId1 : batchId2;
     const isSelected = i <= 80;
 
     photoData.push({
       eventId: weddingEvent.id,
-      uploadedById: uploader.id,
+      uploadedById: admin.id,
       filename: `wedding-photo-${String(i).padStart(4, '0')}.jpg`,
       originalFilename: `DSC_${String(7000 + i).padStart(4, '0')}.jpg`,
       storageKey: `events/${weddingEvent.id}/originals/wedding-photo-${String(i).padStart(4, '0')}.jpg`,
@@ -196,11 +127,10 @@ async function main() {
   await safeCreateMany(prisma.photo, photoData);
 
   for (let i = 1; i <= 40; i++) {
-    const uploader = i <= 20 ? photographer3 : photographer4;
     await prisma.photo.create({
       data: {
         eventId: birthdayEvent.id,
-        uploadedById: uploader.id,
+        uploadedById: admin.id,
         filename: `birthday-photo-${String(i).padStart(4, '0')}.jpg`,
         originalFilename: `IMG_${String(1000 + i).padStart(4, '0')}.jpg`,
         storageKey: `events/${birthdayEvent.id}/originals/birthday-photo-${String(i).padStart(4, '0')}.jpg`,
@@ -323,34 +253,6 @@ async function main() {
     {
       userId: admin.id,
       eventId: weddingEvent.id,
-      action: 'MEMBER_ADDED',
-      details: JSON.stringify({ memberEmail: photographer1.email, memberName: photographer1.name }),
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: admin.id,
-      eventId: weddingEvent.id,
-      action: 'MEMBER_ADDED',
-      details: JSON.stringify({ memberEmail: photographer2.email, memberName: photographer2.name }),
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: photographer1.id,
-      eventId: weddingEvent.id,
-      action: 'PHOTOS_UPLOADED',
-      details: JSON.stringify({ count: 60, batchId: batchId1 }),
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: photographer2.id,
-      eventId: weddingEvent.id,
-      action: 'PHOTOS_UPLOADED',
-      details: JSON.stringify({ count: 60, batchId: batchId2 }),
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: admin.id,
-      eventId: weddingEvent.id,
       action: 'PHOTOS_BULK_SELECTED',
       details: JSON.stringify({ count: 80 }),
       createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
@@ -385,43 +287,11 @@ async function main() {
   await safeCreateMany(prisma.notification, [
     {
       userId: admin.id,
-      title: 'Upload Batch Completed',
-      message: `${photographer1.name} uploaded 60 photos to Arjun & Priya Wedding.`,
-      type: 'upload',
-      isRead: true,
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: admin.id,
-      title: 'Upload Batch Completed',
-      message: `${photographer2.name} uploaded 60 photos to Arjun & Priya Wedding.`,
-      type: 'upload',
-      isRead: true,
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: admin.id,
       title: 'Gallery Published',
       message: `Wedding Gallery for "Arjun & Priya Wedding" is now live.`,
       type: 'gallery',
       isRead: false,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: photographer1.id,
-      title: 'Added to Event',
-      message: `You have been added to the event "Arjun & Priya Wedding".`,
-      type: 'event',
-      isRead: false,
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    },
-    {
-      userId: photographer2.id,
-      title: 'Added to Event',
-      message: `You have been added to the event "Arjun & Priya Wedding".`,
-      type: 'event',
-      isRead: false,
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     },
   ]);
 
@@ -429,10 +299,9 @@ async function main() {
 
   console.log('\n🎉 Seed completed successfully!\n');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Demo Credentials:');
+  console.log('Admin Credentials:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('Admin:        admin@framehouse.com / Admin@123456');
-  console.log('Photographer: photographer@example.com / Member@123456');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('Demo Gallery:');
   console.log('  URL: /gallery/arjun-priya-wedding-2026');
