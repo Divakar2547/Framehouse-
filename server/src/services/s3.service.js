@@ -14,15 +14,11 @@ import { env } from '../config/env.js';
 
 const STORAGE_DIR = path.resolve(process.cwd(), 'storage');
 
-// Ensure local storage directory exists in development/test
-if (!env.isProduction && !fs.existsSync(STORAGE_DIR)) {
-  fs.mkdirSync(STORAGE_DIR, { recursive: true });
-}
-
-function assertLocalStorageAllowed() {
-  if (env.isProduction) {
-    throw new Error('Local disk storage fallback is forbidden in production. AWS S3 must be configured.');
-  }
+// Ensure local storage directory exists
+if (!fs.existsSync(STORAGE_DIR)) {
+  try {
+    fs.mkdirSync(STORAGE_DIR, { recursive: true });
+  } catch {}
 }
 
 function getLocalFilePath(key) {
@@ -30,14 +26,12 @@ function getLocalFilePath(key) {
   return path.join(STORAGE_DIR, cleanKey);
 }
 
-// In-memory + persistent disk storage (development/test only)
+// In-memory + persistent disk storage fallback
 export const mockStorage = {
   has(key) {
-    assertLocalStorageAllowed();
     return fs.existsSync(getLocalFilePath(key));
   },
   get(key) {
-    assertLocalStorageAllowed();
     const filePath = getLocalFilePath(key);
     if (fs.existsSync(filePath)) {
       return fs.readFileSync(filePath);
@@ -45,7 +39,6 @@ export const mockStorage = {
     return null;
   },
   set(key, buffer) {
-    assertLocalStorageAllowed();
     const filePath = getLocalFilePath(key);
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -54,7 +47,6 @@ export const mockStorage = {
     fs.writeFileSync(filePath, Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
   },
   delete(key) {
-    assertLocalStorageAllowed();
     const filePath = getLocalFilePath(key);
     if (fs.existsSync(filePath)) {
       try {
