@@ -86,7 +86,12 @@ function Login({ register = false }) {
       const user = register ? await signUp(name, email, password) : await signIn(email, password);
       navigate(user.role === 'ADMIN' ? '/admin/dashboard' : '/team/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to continue');
+      const serverMsg =
+        err.response?.data?.message ||
+        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(', ') : null) ||
+        err.response?.data?.error ||
+        'Unable to continue';
+      setError(serverMsg);
     } finally {
       setBusy(false);
     }
@@ -294,7 +299,12 @@ function NewEvent() {
       await queryClient.invalidateQueries({ queryKey: ['events'] });
       navigate(`/admin/events/${result.data.event.id}`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Could not create event');
+      const serverMsg =
+        err.response?.data?.message ||
+        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(', ') : null) ||
+        err.response?.data?.error ||
+        'Could not create event';
+      setError(serverMsg);
     }
   };
 
@@ -646,7 +656,12 @@ function PublishModal({ eventId, availablePhotos, selectedPhotoIds, onClose, onP
       setPublishedPin(form.pin);
       onPublished();
     } catch (err) {
-      setError(err.response?.data?.error || 'Could not publish gallery');
+      const serverMsg =
+        err.response?.data?.message ||
+        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(', ') : null) ||
+        err.response?.data?.error ||
+        'Could not publish gallery';
+      setError(serverMsg);
     } finally {
       setBusy(false);
     }
