@@ -6,6 +6,10 @@ import prisma from '../config/prisma.js';
 export async function getDashboardAnalytics(req, res, next) {
   try {
     const user = req.user;
+    const eventFilter = user.role === 'ADMIN' ? {} : { ownerId: user.id };
+    const photoFilter = user.role === 'ADMIN' ? { status: { not: 'DELETED' } } : { event: { ownerId: user.id }, status: { not: 'DELETED' } };
+    const galleryFilter = user.role === 'ADMIN' ? { isPublished: true } : { event: { ownerId: user.id }, isPublished: true };
+    const galleryAggFilter = user.role === 'ADMIN' ? {} : { event: { ownerId: user.id } };
 
     const [
       totalEvents,
@@ -16,30 +20,33 @@ export async function getDashboardAnalytics(req, res, next) {
       totalDownloads,
       recentEvents,
     ] = await Promise.all([
-      prisma.event.count({ where: { ownerId: user.id } }),
+      prisma.event.count({ where: eventFilter }),
+      prisma.photo.count({ where: photoFilter }),
       prisma.photo.count({
-        where: { event: { ownerId: user.id }, status: { not: 'DELETED' } },
+        where: {
+          ...(user.role === 'ADMIN' ? {} : { event: { ownerId: user.id } }),
+          isSelected: true,
+          status: 'READY',
+        },
       }),
-      prisma.photo.count({
-        where: { event: { ownerId: user.id }, isSelected: true, status: 'READY' },
-      }),
-      prisma.gallery.count({
-        where: { event: { ownerId: user.id }, isPublished: true },
-      }),
+      prisma.gallery.count({ where: galleryFilter }),
       prisma.gallery.aggregate({
-        where: { event: { ownerId: user.id } },
+        where: galleryAggFilter,
         _sum: { viewCount: true },
       }),
       prisma.gallery.aggregate({
-        where: { event: { ownerId: user.id } },
+        where: galleryAggFilter,
         _sum: { downloadCount: true },
       }),
       prisma.event.findMany({
-        where: { ownerId: user.id },
+        where: eventFilter,
         take: 5,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { eventDate: 'desc' },
         select: {
-          id: true, name: true, status: true, eventDate: true,
+          id: true,
+          name: true,
+          status: true,
+          eventDate: true,
           _count: { select: { photos: true, members: true } },
         },
       }),
@@ -50,7 +57,7 @@ export async function getDashboardAnalytics(req, res, next) {
     const uploadActivity = await prisma.photo.groupBy({
       by: ['createdAt'],
       where: {
-        event: { ownerId: user.id },
+        ...(user.role === 'ADMIN' ? {} : { event: { ownerId: user.id } }),
         createdAt: { gte: thirtyDaysAgo },
         status: { not: 'DELETED' },
       },

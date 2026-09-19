@@ -13,7 +13,6 @@ export async function listEvents(req, res, next) {
     const where =
       user.role === 'ADMIN'
         ? {
-            ownerId: user.id,
             ...(status ? { status } : {}),
             ...(search ? { name: { contains: search } } : {}),
           }
@@ -110,11 +109,6 @@ export async function getEvent(req, res, next) {
       return;
     }
 
-    // Authorization: admin sees only their own; team sees only assigned
-    if (user.role === 'ADMIN' && event.ownerId !== user.id) {
-      sendError(res, 'Access denied', 403);
-      return;
-    }
     if (user.role === 'TEAM_MEMBER') {
       const isMember = event.members.some(m => m.userId === user.id);
       if (!isMember) {
