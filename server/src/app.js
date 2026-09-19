@@ -18,6 +18,11 @@ import { mockStorage } from './services/s3.service.js';
 
 const app = express();
 
+// Trust reverse proxy in production (Render, Railway, Fly.io, Vercel)
+if (env.isProduction) {
+  app.set('trust proxy', 1);
+}
+
 // ─── Security Headers ──────────────────────────────────────────────────────────
 
 app.use(
@@ -47,11 +52,17 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
-// ─── Rate limiting ────────────────────────────────────────────────────────────
+// ─── Root & Health check ──────────────────────────────────────────────────────
 
-app.use('/api', globalRateLimiter);
-
-// ─── Health check ──────────────────────────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'Framehouse API',
+    status: 'online',
+    environment: env.NODE_ENV,
+    health: '/health',
+    message: 'Framehouse Backend API is running successfully.'
+  });
+});
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', environment: env.NODE_ENV, timestamp: new Date().toISOString() });
@@ -88,6 +99,8 @@ if (!env.isProduction) {
 }
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
+
+app.use('/api', globalRateLimiter);
 
 app.use('/api/public/gallery', publicRoutes);
 app.use('/api/auth', authRoutes);
