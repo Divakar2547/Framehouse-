@@ -19,6 +19,14 @@ function Protected({ children }) {
 function Shell() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const handleLogout = async () => {
+    await signOut();
+    queryClient.clear();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -48,7 +56,7 @@ function Shell() {
               <small>{user?.role === 'ADMIN' ? 'Lead photographer' : 'Team member'}</small>
             </div>
           </div>
-          <button className="icon-button" title="Sign out" onClick={() => signOut().then(() => navigate('/login'))}>
+          <button className="icon-button" title="Sign out" onClick={handleLogout}>
             <LogOut size={17} />
           </button>
         </div>

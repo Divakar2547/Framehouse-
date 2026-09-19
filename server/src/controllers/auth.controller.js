@@ -112,16 +112,21 @@ export async function login(req, res, next) {
 
 export async function logout(req, res, next) {
   try {
-    if (req.user) {
+    if (req.user?.id) {
       await createAuditLog({
         userId: req.user.id,
         action: 'USER_LOGOUT',
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
-      });
+      }).catch(() => {});
     }
 
-    res.clearCookie('token', { path: '/' });
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: env.isProduction,
+      sameSite: env.isProduction ? 'none' : 'lax',
+      path: '/',
+    });
     sendSuccess(res, null, 'Logged out successfully');
   } catch (err) {
     next(err);

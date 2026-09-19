@@ -27,8 +27,13 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
-    await authApi.logout();
-    setUser(null);
+    try {
+      await authApi.logout();
+    } catch (err) {
+      console.warn('Logout request completed with warning:', err);
+    } finally {
+      setUser(null);
+    }
   };
 
   return (
