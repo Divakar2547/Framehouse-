@@ -4,7 +4,9 @@ import prisma from '../config/prisma.js';
 
 export async function authenticate(req, res, next) {
   try {
-    const token = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+    const token = req.cookies?.token || bearerToken;
 
     if (!token) {
       sendError(res, 'Authentication required', 401);

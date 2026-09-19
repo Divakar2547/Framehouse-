@@ -16,12 +16,18 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email, password) => {
     const result = await authApi.login({ email, password });
+    if (result.data?.token) {
+      localStorage.setItem('framehouse_token', result.data.token);
+    }
     setUser(result.data.user);
     return result.data.user;
   };
 
   const signUp = async (name, email, password) => {
     const result = await authApi.register({ name, email, password });
+    if (result.data?.token) {
+      localStorage.setItem('framehouse_token', result.data.token);
+    }
     setUser(result.data.user);
     return result.data.user;
   };
@@ -32,6 +38,7 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.warn('Logout request completed with warning:', err);
     } finally {
+      localStorage.removeItem('framehouse_token');
       setUser(null);
     }
   };

@@ -5,12 +5,17 @@ import { createAuditLog } from '../utils/auditLog.js';
 import prisma from '../config/prisma.js';
 import { env } from '../config/env.js';
 
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: env.isProduction,
-  sameSite: env.isProduction ? 'none' : 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  path: '/',
+const isHttps = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL);
+
+const getCookieOptions = (req) => {
+  const isSecure = Boolean(req?.secure || req?.headers?.['x-forwarded-proto'] === 'https' || isHttps);
+  return {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: isSecure ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  };
 };
 
 export async function register(req, res, next) {
@@ -31,7 +36,7 @@ export async function register(req, res, next) {
     });
 
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
-    res.cookie('token', token, COOKIE_OPTIONS);
+    res.cookie('token', token, getCookieOptions(req));
 
     await createAuditLog({
       userId: user.id,
@@ -41,7 +46,7 @@ export async function register(req, res, next) {
       userAgent: req.headers['user-agent'],
     });
 
-    sendSuccess(res, { user }, 'Registration successful', 201);
+    sendSuccess(res, { user, token }, 'Registration successful', 201);
   } catch (err) {
     next(err);
   }
@@ -81,7 +86,7 @@ export async function login(req, res, next) {
     }
 
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
-    res.cookie('token', token, COOKIE_OPTIONS);
+    res.cookie('token', token, getCookieOptions(req));
 
     await prisma.user.update({
       where: { id: user.id },
@@ -104,6 +109,7 @@ export async function login(req, res, next) {
         role: user.role,
         avatarUrl: user.avatarUrl,
       },
+      token,
     }, 'Login successful');
   } catch (err) {
     next(err);

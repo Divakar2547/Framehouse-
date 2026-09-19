@@ -6,6 +6,14 @@ const API_BASE = import.meta.env.VITE_SERVER_URL
 
 export const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
+api.interceptors.request.use((config) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('framehouse_token') : null;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const unwrap = (request) => request.then((response) => response.data);
 
 export const authApi = {
