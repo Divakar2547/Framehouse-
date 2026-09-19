@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from './context/AuthContext';
-import { eventApi, galleryApi, analyticsApi, uploadPhotoFile } from './services/api';
+import { eventApi, galleryApi, analyticsApi, uploadPhotoFile, resolveImageUrl } from './services/api';
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -971,12 +971,13 @@ function EventDetail() {
 
 function PhotoTile({ photo, selected, onClick }) {
   const [hasError, setHasError] = useState(false);
+  const imgSrc = resolveImageUrl(photo.thumbnailUrl || photo.galleryUrl || photo.url);
   return (
     <button className={`photo-tile ${selected ? 'selected' : ''}`} onClick={onClick}>
       <div className="photo-thumbnail">
-        {photo.thumbnailUrl && !hasError ? (
+        {imgSrc && !hasError ? (
           <img 
-            src={photo.thumbnailUrl} 
+            src={imgSrc} 
             alt={photo.originalFilename || photo.filename} 
             loading="lazy" 
             onError={() => setHasError(true)}
@@ -1177,7 +1178,7 @@ function GalleryView({ slug, gallery }) {
           <figure key={photo.id} className="gallery-photo">
             <button onClick={() => setLightbox(photo)}>
               <img 
-                src={photo.galleryUrl || photo.thumbnailUrl || photo.url} 
+                src={resolveImageUrl(photo.galleryUrl || photo.thumbnailUrl || photo.url)} 
                 alt={photo.filename} 
                 loading="lazy" 
               />
@@ -1211,7 +1212,7 @@ function GalleryView({ slug, gallery }) {
         <div className="lightbox" onClick={() => setLightbox(null)}>
           <button className="lightbox-close" onClick={() => setLightbox(null)}><X /></button>
           <img 
-            src={lightbox.galleryUrl || lightbox.thumbnailUrl || lightbox.url} 
+            src={resolveImageUrl(lightbox.galleryUrl || lightbox.thumbnailUrl || lightbox.url)} 
             alt={lightbox.filename} 
             onClick={e => e.stopPropagation()} 
           />

@@ -16,6 +16,19 @@ api.interceptors.request.use((config) => {
 
 export const unwrap = (request) => request.then((response) => response.data);
 
+export function resolveImageUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('/api')) {
+    const base = import.meta.env.VITE_SERVER_URL ? import.meta.env.VITE_SERVER_URL.replace(/\/$/, '') : '';
+    return `${base}${url}`;
+  }
+  if (url.includes('localhost:5000') && import.meta.env.VITE_SERVER_URL) {
+    const base = import.meta.env.VITE_SERVER_URL.replace(/\/$/, '');
+    return url.replace(/http:\/\/localhost:5000/, base);
+  }
+  return url;
+}
+
 export const authApi = {
   me: () => unwrap(api.get('/auth/me')),
   login: (payload) => unwrap(api.post('/auth/login', payload)),
