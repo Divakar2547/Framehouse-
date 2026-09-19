@@ -144,21 +144,46 @@ export async function generateViewPresignedUrl(
  */
 export async function getObjectBuffer(key) {
   if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
     if (mockStorage.has(key)) {
       return mockStorage.get(key);
     }
-    // Generate a neutral placeholder JPEG if mock storage doesn't have it on disk
-    return sharp({
-      create: {
-        width: 1200,
-        height: 800,
-        channels: 3,
-        background: { r: 35, g: 39, b: 47 },
-      },
-    })
-      .jpeg()
-      .toBuffer();
+    
+    // Parse key to customize style
+    const isThumb = key.includes('thumbnails');
+    const width = isThumb ? 400 : 1200;
+    const height = isThumb ? 400 : 800;
+    
+    // Dynamic color accents based on key hash
+    const colors = [
+      ['#3b0764', '#7e22ce', '#c084fc'], // Purple
+      ['#0f172a', '#0369a1', '#38bdf8'], // Blue
+      ['#14532d', '#15803d', '#4ade80'], // Emerald
+      ['#7c2d12', '#c2410c', '#fb923c'], // Sunset Orange
+      ['#831843', '#be185d', '#f472b6'], // Rose
+    ];
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) % colors.length;
+    const palette = colors[Math.abs(hash)];
+
+    const svg = `
+      <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="${palette[0]}" />
+            <stop offset="50%" stop-color="${palette[1]}" />
+            <stop offset="100%" stop-color="${palette[2]}" />
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#g)" />
+        <circle cx="${width * 0.8}" cy="${height * 0.2}" r="${height * 0.3}" fill="#ffffff" fill-opacity="0.08" />
+        <circle cx="${width * 0.2}" cy="${height * 0.8}" r="${height * 0.35}" fill="#ffffff" fill-opacity="0.05" />
+        <rect x="${width * 0.1}" y="${height * 0.15}" width="${width * 0.8}" height="${height * 0.7}" rx="16" fill="#ffffff" fill-opacity="0.1" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2" />
+        <text x="${width * 0.5}" y="${height * 0.48}" font-family="system-ui, -apple-system, sans-serif" font-size="${isThumb ? '18' : '32'}" font-weight="700" fill="#ffffff" text-anchor="middle">Framehouse</text>
+        <text x="${width * 0.5}" y="${height * 0.6}" font-family="system-ui, -apple-system, sans-serif" font-size="${isThumb ? '12' : '18'}" fill="#ffffff" fill-opacity="0.8" text-anchor="middle">High Resolution Photo</text>
+      </svg>
+    `;
+
+    return sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toBuffer();
   }
 
   const command = new GetObjectCommand({
