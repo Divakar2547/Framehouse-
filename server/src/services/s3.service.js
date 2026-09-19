@@ -57,9 +57,18 @@ export const mockStorage = {
   clear() {}
 };
 
+const isRealS3 = Boolean(
+  env.AWS_S3_BUCKET &&
+  env.AWS_ACCESS_KEY_ID &&
+  env.AWS_SECRET_ACCESS_KEY &&
+  !env.AWS_ACCESS_KEY_ID.startsWith('YOUR_') &&
+  !env.AWS_S3_BUCKET.startsWith('YOUR_') &&
+  env.AWS_ACCESS_KEY_ID.trim() !== ''
+);
+
 const s3Client = new S3Client({
   region: env.AWS_REGION,
-  ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
+  ...(isRealS3
     ? {
         credentials: {
           accessKeyId: env.AWS_ACCESS_KEY_ID,
@@ -81,8 +90,7 @@ export async function generateUploadPresignedUrl(
   mimeType,
   expiresIn = 900
 ) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-upload/${encodeURIComponent(key)}`;
   }
 
@@ -104,8 +112,7 @@ export async function generateDownloadPresignedUrl(
   originalFilename,
   expiresIn = 600
 ) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-view/${encodeURIComponent(key)}?download=1&filename=${encodeURIComponent(originalFilename || 'photo.jpg')}`;
   }
 
@@ -126,8 +133,7 @@ export async function generateViewPresignedUrl(
   key,
   expiresIn = 3600
 ) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-view/${encodeURIComponent(key)}`;
   }
 
@@ -143,7 +149,7 @@ export async function generateViewPresignedUrl(
  * Fetch the object binary as a Buffer from S3 or local disk storage.
  */
 export async function getObjectBuffer(key) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
+  if (!isRealS3) {
     if (mockStorage.has(key)) {
       return mockStorage.get(key);
     }
@@ -210,8 +216,7 @@ export async function uploadBuffer(
   mimeType,
   metadata
 ) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     mockStorage.set(key, buffer);
     return;
   }
@@ -231,8 +236,7 @@ export async function uploadBuffer(
  * Delete a single object from S3 or local disk.
  */
 export async function deleteObject(key) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     mockStorage.delete(key);
     return;
   }
@@ -251,8 +255,7 @@ export async function deleteObject(key) {
 export async function deleteObjects(keys) {
   if (keys.length === 0) return;
 
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     for (const k of keys) mockStorage.delete(k);
     return;
   }
@@ -280,8 +283,7 @@ export async function deleteObjects(keys) {
  * Check whether an object exists in S3 or local disk.
  */
 export async function objectExists(key) {
-  if (!BUCKET || !env.AWS_ACCESS_KEY_ID) {
-    assertLocalStorageAllowed();
+  if (!isRealS3) {
     return mockStorage.has(key);
   }
 
