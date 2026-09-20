@@ -107,39 +107,7 @@ The workflow is intentionally simple:
 
 ## Local development
 
-### Option 1: Docker (recommended)
-
-1. Copy environment files:
-
-```bash
-copy server\.env.example server\.env
-copy client\.env.example client\.env
-```
-
-2. Start the app:
-
-```bash
-docker compose up --build
-```
-
-3. Seed demo data:
-
-```bash
-docker compose run --rm server npm run db:seed
-```
-
-4. Open:
-- Frontend: http://localhost:5173
-- Backend: http://localhost:5000/health
-
-The Docker setup launches:
-- MongoDB replica set on port 27017
-- Express API on port 5000
-- Vite dev server on port 5173
-
----
-
-### Option 2: Manual local setup
+Follow the manual local setup below. This project does not require Docker.
 
 #### 1) Install dependencies
 

@@ -1,0 +1,8 @@
+{
+  "name": "event-photo-gallery",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix client run build",
+    "dev": "npm --prefix client run dev"
+  }
+}
