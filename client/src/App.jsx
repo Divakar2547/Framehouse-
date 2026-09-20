@@ -651,9 +651,14 @@ function PublishModal({ eventId, availablePhotos, selectedPhotoIds, onClose, onP
 
       // 3. Publish gallery
       await galleryApi.publish(gallery.id);
-      // Always build the share URL using the frontend origin so the link
-      // opens the React app, not the backend API server.
-      setPublishedUrl(`${window.location.origin}/gallery/${gallery.slug}`);
+      // Use a configured public frontend URL for generated links so local dev
+      // still works on localhost while deployed builds use the live domain.
+      const publicFrontendUrl = (
+        import.meta.env.VITE_PUBLIC_SITE_URL ||
+        import.meta.env.VITE_FRONTEND_URL ||
+        window.location.origin
+      ).replace(/\/$/, '');
+      setPublishedUrl(`${publicFrontendUrl}/gallery/${gallery.slug}`);
       setPublishedPin(form.pin);
       onPublished();
     } catch (err) {
