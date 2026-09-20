@@ -33,6 +33,24 @@ async function safeCreateMany(model, data) {
 /**
  * Generate a styled, aesthetic high-res image and write its thumbnail and gallery variants to disk
  */
+function getSceneDescriptor(title, category) {
+  const haystack = `${title || ''} ${category || ''}`.toLowerCase();
+
+  if (/(wedding|couple|bride|groom|engagement|vows|mehendi|reception)/.test(haystack)) {
+    return 'wedding';
+  }
+
+  if (/(festival|concert|music|live|neon|dj|performance|stage)/.test(haystack)) {
+    return 'festival';
+  }
+
+  if (/(fashion|runway|couture|gala|model|editorial|dress|beauty)/.test(haystack)) {
+    return 'fashion';
+  }
+
+  return 'default';
+}
+
 async function generateAndStoreImage({
   key,
   title,
@@ -51,9 +69,45 @@ async function generateAndStoreImage({
   const isThumb = key.includes('thumbnails');
   const actualW = isThumb ? 400 : width;
   const actualH = isThumb ? 400 : height;
-
   const safeTitle = (title || '').replace(/&/g, '&amp;');
   const safeCategory = (category || '').replace(/&/g, '&amp;');
+  const scene = getSceneDescriptor(title, category);
+
+  let sceneMarkup = '';
+
+  if (scene === 'wedding') {
+    sceneMarkup = `
+      <circle cx="${actualW * 0.32}" cy="${actualH * 0.35}" r="${actualW * 0.06}" fill="#fef3c7" fill-opacity="0.9" />
+      <circle cx="${actualW * 0.68}" cy="${actualH * 0.35}" r="${actualW * 0.06}" fill="#fef3c7" fill-opacity="0.9" />
+      <path d="M ${actualW * 0.27} ${actualH * 0.52} Q ${actualW * 0.5} ${actualH * 0.7} ${actualW * 0.73} ${actualH * 0.52} L ${actualW * 0.72} ${actualH * 0.82} Q ${actualW * 0.5} ${actualH * 0.92} ${actualW * 0.28} ${actualH * 0.82} Z" fill="#ffffff" fill-opacity="0.18" />
+      <path d="M ${actualW * 0.43} ${actualH * 0.55} Q ${actualW * 0.5} ${actualH * 0.62} ${actualW * 0.57} ${actualH * 0.55}" stroke="#fff7ed" stroke-width="${isThumb ? '3' : '5'}" fill="none" stroke-linecap="round" />
+      <path d="M ${actualW * 0.38} ${actualH * 0.56} L ${actualW * 0.46} ${actualH * 0.9} M ${actualW * 0.62} ${actualH * 0.56} L ${actualW * 0.54} ${actualH * 0.9}" stroke="#fff7ed" stroke-width="${isThumb ? '4' : '6'}" stroke-linecap="round" fill="none" />
+      <path d="M ${actualW * 0.48} ${actualH * 0.18} C ${actualW * 0.54} ${actualH * 0.24}, ${actualW * 0.58} ${actualH * 0.3}, ${actualW * 0.5} ${actualH * 0.34} C ${actualW * 0.42} ${actualH * 0.3}, ${actualW * 0.46} ${actualH * 0.24}, ${actualW * 0.48} ${actualH * 0.18} Z" fill="#fbcfe8" fill-opacity="0.7" />
+    `;
+  } else if (scene === 'festival') {
+    sceneMarkup = `
+      <rect x="${actualW * 0.18}" y="${actualH * 0.28}" width="${actualW * 0.64}" height="${actualH * 0.46}" rx="20" fill="#1f2937" fill-opacity="0.28" stroke="#ffffff" stroke-opacity="0.32" />
+      <path d="M ${actualW * 0.26} ${actualH * 0.74} Q ${actualW * 0.5} ${actualH * 0.48} ${actualW * 0.74} ${actualH * 0.74}" stroke="#f8fafc" stroke-width="${isThumb ? '3' : '5'}" fill="none" opacity="0.75" />
+      <circle cx="${actualW * 0.28}" cy="${actualH * 0.34}" r="${actualW * 0.045}" fill="#fef08a" fill-opacity="0.8" />
+      <circle cx="${actualW * 0.5}" cy="${actualH * 0.22}" r="${actualW * 0.065}" fill="#facc15" fill-opacity="0.8" />
+      <circle cx="${actualW * 0.72}" cy="${actualH * 0.34}" r="${actualW * 0.045}" fill="#fef08a" fill-opacity="0.8" />
+      <path d="M ${actualW * 0.2} ${actualH * 0.78} L ${actualW * 0.35} ${actualH * 0.6} L ${actualW * 0.45} ${actualH * 0.78} M ${actualW * 0.52} ${actualH * 0.78} L ${actualW * 0.6} ${actualH * 0.58} L ${actualW * 0.7} ${actualH * 0.78}" stroke="#f8fafc" stroke-width="${isThumb ? '3' : '5'}" fill="none" stroke-linecap="round" />
+    `;
+  } else if (scene === 'fashion') {
+    sceneMarkup = `
+      <path d="M ${actualW * 0.4} ${actualH * 0.26} Q ${actualW * 0.42} ${actualH * 0.18} ${actualW * 0.5} ${actualH * 0.2} Q ${actualW * 0.58} ${actualH * 0.18} ${actualW * 0.6} ${actualH * 0.26} L ${actualW * 0.66} ${actualH * 0.9} L ${actualW * 0.34} ${actualH * 0.9} Z" fill="#ffffff" fill-opacity="0.15" />
+      <circle cx="${actualW * 0.5}" cy="${actualH * 0.39}" r="${actualW * 0.055}" fill="#f7e7d6" fill-opacity="0.9" />
+      <path d="M ${actualW * 0.45} ${actualH * 0.48} Q ${actualW * 0.5} ${actualH * 0.58} ${actualW * 0.55} ${actualH * 0.48}" stroke="#fee2e2" stroke-width="${isThumb ? '3' : '5'}" fill="none" />
+      <path d="M ${actualW * 0.4} ${actualH * 0.54} L ${actualW * 0.36} ${actualH * 0.88} M ${actualW * 0.6} ${actualH * 0.54} L ${actualW * 0.64} ${actualH * 0.88} M ${actualW * 0.34} ${actualH * 0.6} Q ${actualW * 0.5} ${actualH * 0.72} ${actualW * 0.66} ${actualH * 0.6}" stroke="#ffffff" stroke-width="${isThumb ? '3' : '5'}" fill="none" stroke-linecap="round" />
+      <path d="M ${actualW * 0.2} ${actualH * 0.82} L ${actualW * 0.8} ${actualH * 0.82}" stroke="#ffffff" stroke-opacity="0.4" stroke-width="2" />
+    `;
+  } else {
+    sceneMarkup = `
+      <circle cx="${actualW * 0.25}" cy="${actualH * 0.26}" r="${actualW * 0.14}" fill="#ffffff" fill-opacity="0.08" />
+      <circle cx="${actualW * 0.75}" cy="${actualH * 0.7}" r="${actualW * 0.18}" fill="#ffffff" fill-opacity="0.06" />
+      <rect x="${actualW * 0.22}" y="${actualH * 0.42}" width="${actualW * 0.56}" height="${actualH * 0.24}" rx="22" fill="#ffffff" fill-opacity="0.12" />
+    `;
+  }
 
   const svg = `
     <svg width="${actualW}" height="${actualH}" viewBox="0 0 ${actualW} ${actualH}" xmlns="http://www.w3.org/2000/svg">
@@ -64,27 +118,16 @@ async function generateAndStoreImage({
           <stop offset="100%" stop-color="${palette[2]}" />
         </linearGradient>
       </defs>
-      
-      <!-- Background -->
+
       <rect width="100%" height="100%" fill="url(#grad_${index})" />
-      
-      <!-- Geometric Accents -->
       <circle cx="${actualW * 0.85}" cy="${actualH * 0.15}" r="${actualH * 0.35}" fill="#ffffff" fill-opacity="0.08" />
       <circle cx="${actualW * 0.15}" cy="${actualH * 0.85}" r="${actualH * 0.4}" fill="#ffffff" fill-opacity="0.06" />
-      
-      <!-- Inner Frame -->
       <rect x="${actualW * 0.08}" y="${actualH * 0.08}" width="${actualW * 0.84}" height="${actualH * 0.84}" rx="${isThumb ? '12' : '20'}" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.3" stroke-width="${isThumb ? '1' : '2'}" />
-      
-      <!-- Category Badge -->
       <rect x="${actualW * 0.5 - (isThumb ? 60 : 90)}" y="${actualH * 0.2}" width="${isThumb ? 120 : 180}" height="${isThumb ? 24 : 34}" rx="${isThumb ? 12 : 17}" fill="#ffffff" fill-opacity="0.25" />
       <text x="${actualW * 0.5}" y="${actualH * 0.2 + (isThumb ? 16 : 22)}" font-family="system-ui, -apple-system, sans-serif" font-size="${isThumb ? '10' : '13'}" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="1.5">${safeCategory.toUpperCase()}</text>
-      
-      <!-- Title -->
-      <text x="${actualW * 0.5}" y="${actualH * 0.48}" font-family="system-ui, -apple-system, sans-serif" font-size="${isThumb ? '16' : '28'}" font-weight="800" fill="#ffffff" text-anchor="middle">${safeTitle}</text>
-      
-      <!-- Frame Number -->
+      ${sceneMarkup}
+      <text x="${actualW * 0.5}" y="${actualH * 0.52}" font-family="system-ui, -apple-system, sans-serif" font-size="${isThumb ? '16' : '28'}" font-weight="800" fill="#ffffff" text-anchor="middle">${safeTitle}</text>
       <text x="${actualW * 0.5}" y="${actualH * (isThumb ? 0.64 : 0.62)}" font-family="system-ui, -apple-system, sans-serif" font-size="${isThumb ? '11' : '16'}" font-weight="500" fill="#ffffff" fill-opacity="0.85" text-anchor="middle">Frame #${String(index).padStart(3, '0')} • 4K Original</text>
-      
       ${!isThumb ? `<text x="${actualW * 0.5}" y="${actualH * 0.78}" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#ffffff" fill-opacity="0.5" text-anchor="middle" letter-spacing="2">FRAMEHOUSE STUDIO</text>` : ''}
     </svg>
   `;
