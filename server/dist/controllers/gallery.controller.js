@@ -300,7 +300,8 @@ async function publishGallery(req, res, next) {
             },
         });
         const { pinHash: _, ...safeGallery } = updated;
-        (0, response_1.sendSuccess)(res, { gallery: safeGallery, shareUrl: `${process.env.CLIENT_URL}/gallery/${gallery.slug}` }, 'Gallery published');
+        const clientOrigin = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+        (0, response_1.sendSuccess)(res, { gallery: safeGallery, shareUrl: `${clientOrigin}/gallery/${gallery.slug}` }, 'Gallery published');
     }
     catch (err) {
         next(err);

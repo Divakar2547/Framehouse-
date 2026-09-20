@@ -22,7 +22,11 @@ if (!fs.existsSync(STORAGE_DIR)) {
 }
 
 function getLocalFilePath(key) {
-  const cleanKey = key.replace(/^[/\\]+/, '').replace(/\.\.[/\\]/g, '');
+  let cleanKey = String(key || '');
+  try {
+    cleanKey = decodeURIComponent(cleanKey);
+  } catch {}
+  cleanKey = cleanKey.replace(/^[/\\]+/, '').replace(/\.\.[/\\]/g, '');
   return path.join(STORAGE_DIR, cleanKey);
 }
 
@@ -85,13 +89,20 @@ const sendS3Command = (command) => s3Client.send(command);
  * Generate a presigned PUT URL so the client can upload directly to S3 or local server.
  * The presigned URL expires in 15 minutes.
  */
+// The public-facing server origin used in mock URLs.
+// Strips trailing slash and ensures HTTPS in production.
+function getServerOrigin() {
+  const raw = env.SERVER_URL || 'http://localhost:5000';
+  return raw.replace(/\/$/, '');
+}
+
 export async function generateUploadPresignedUrl(
   key,
   mimeType,
   expiresIn = 900
 ) {
   if (!isRealS3) {
-    return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-upload/${encodeURIComponent(key)}`;
+    return `${getServerOrigin()}/api/mock-upload/${encodeURIComponent(key)}`;
   }
 
   const command = new PutObjectCommand({
@@ -113,7 +124,7 @@ export async function generateDownloadPresignedUrl(
   expiresIn = 600
 ) {
   if (!isRealS3) {
-    return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-view/${encodeURIComponent(key)}?download=1&filename=${encodeURIComponent(originalFilename || 'photo.jpg')}`;
+    return `${getServerOrigin()}/api/mock-view/${encodeURIComponent(key)}?download=1&filename=${encodeURIComponent(originalFilename || 'photo.jpg')}`;
   }
 
   const command = new GetObjectCommand({
@@ -134,7 +145,7 @@ export async function generateViewPresignedUrl(
   expiresIn = 3600
 ) {
   if (!isRealS3) {
-    return `${env.SERVER_URL || 'http://localhost:5000'}/api/mock-view/${encodeURIComponent(key)}`;
+    return `${getServerOrigin()}/api/mock-view/${encodeURIComponent(key)}`;
   }
 
   const command = new GetObjectCommand({

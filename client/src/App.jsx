@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { 
   Camera, ChevronLeft, ChevronRight, FolderOpen, Image, LayoutDashboard, LogOut, Plus, Search, 
@@ -108,7 +108,6 @@ function Login({ register = false }) {
           <h1>Your best frames,<br /><em>together.</em></h1>
           <p>Coordinate the shoot, shape the story, and hand over a gallery that feels like yours.</p>
         </div>
-        <div className="art-footer">Est. 2024 <span>•</span> For teams who care about the details</div>
       </div>
       <form className="auth-form" onSubmit={submit}>
         <div>
@@ -651,8 +650,10 @@ function PublishModal({ eventId, availablePhotos, selectedPhotoIds, onClose, onP
       await galleryApi.addPhotos(gallery.id, targetPhotoIds);
 
       // 3. Publish gallery
-      const pubRes = await galleryApi.publish(gallery.id);
-      setPublishedUrl(pubRes.data.shareUrl || `${window.location.origin}/gallery/${gallery.slug}`);
+      await galleryApi.publish(gallery.id);
+      // Always build the share URL using the frontend origin so the link
+      // opens the React app, not the backend API server.
+      setPublishedUrl(`${window.location.origin}/gallery/${gallery.slug}`);
       setPublishedPin(form.pin);
       onPublished();
     } catch (err) {
@@ -972,6 +973,11 @@ function EventDetail() {
 function PhotoTile({ photo, selected, onClick }) {
   const [hasError, setHasError] = useState(false);
   const imgSrc = resolveImageUrl(photo.thumbnailUrl || photo.galleryUrl || photo.url);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [imgSrc]);
+
   return (
     <button className={`photo-tile ${selected ? 'selected' : ''}`} onClick={onClick}>
       <div className="photo-thumbnail">

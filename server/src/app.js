@@ -96,19 +96,23 @@ app.get('/health', (_req, res) => {
 
 // Storage upload and view endpoints (used as automatic fallback when AWS S3 is not configured)
 app.put('/api/mock-upload/:key(*)', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
-  mockStorage.set(req.params.key, req.body);
+  let key = req.params.key;
+  try { key = decodeURIComponent(key); } catch {}
+  mockStorage.set(key, req.body);
   res.status(200).send('OK');
 });
 
 app.get('/api/mock-view/:key(*)', async (req, res) => {
   try {
-    const key = req.params.key;
+    let key = req.params.key;
+    try { key = decodeURIComponent(key); } catch {}
     let buf = mockStorage.get(key);
     if (!buf) {
       const { getObjectBuffer } = await import('./services/s3.service.js');
       buf = await getObjectBuffer(key);
     }
     if (buf) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
       if (req.query.download === '1') {
         const filename = req.query.filename || 'photo.jpg';
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);

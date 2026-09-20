@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { createAuditLog } from '../utils/auditLog.js';
 import { generateSlug } from '../utils/crypto.js';
+import { generateViewPresignedUrl } from '../services/s3.service.js';
 import prisma from '../config/prisma.js';
 
 // ─── Assert admin owns the event ──────────────────────────────────────────────
@@ -108,7 +109,8 @@ export async function getGallery(req, res, next) {
             photo: {
               select: {
                 id: true, filename: true, originalFilename: true,
-                thumbnailStorageKey: true, width: true, height: true, status: true,
+                storageKey: true, thumbnailStorageKey: true, galleryStorageKey: true,
+                width: true, height: true, status: true,
               },
             },
           },
@@ -127,9 +129,25 @@ export async function getGallery(req, res, next) {
       return;
     }
 
+    const photosWithUrls = await Promise.all(
+      gallery.photos.map(async (gp) => {
+        const key = gp.photo.thumbnailStorageKey || gp.photo.galleryStorageKey || gp.photo.storageKey;
+        const thumbnailUrl = key ? await generateViewPresignedUrl(key, 3600) : null;
+        const galleryUrl = gp.photo.galleryStorageKey ? await generateViewPresignedUrl(gp.photo.galleryStorageKey, 3600) : thumbnailUrl;
+        return {
+          ...gp,
+          photo: {
+            ...gp.photo,
+            thumbnailUrl,
+            galleryUrl,
+          },
+        };
+      })
+    );
+
     // Never return the PIN hash
     const { pinHash: _, ...safeGallery } = gallery;
-    sendSuccess(res, { gallery: safeGallery });
+    sendSuccess(res, { gallery: { ...safeGallery, photos: photosWithUrls } });
   } catch (err) {
     next(err);
   }
@@ -351,7 +369,9 @@ export async function publishGallery(req, res, next) {
     });
 
     const { pinHash: _, ...safeGallery } = updated;
-    sendSuccess(res, { gallery: safeGallery, shareUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/gallery/${gallery.slug}` }, 'Gallery published');
+    // CLIENT_URL may be a comma-separated list (CORS origins); use only the first entry
+    const clientOrigin = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+    sendSuccess(res, { gallery: safeGallery, shareUrl: `${clientOrigin}/gallery/${gallery.slug}` }, 'Gallery published');
   } catch (err) {
     next(err);
   }

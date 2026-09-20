@@ -17,15 +17,39 @@ api.interceptors.request.use((config) => {
 export const unwrap = (request) => request.then((response) => response.data);
 
 export function resolveImageUrl(url) {
-  if (!url) return '';
-  if (url.startsWith('/api')) {
-    const base = import.meta.env.VITE_SERVER_URL ? import.meta.env.VITE_SERVER_URL.replace(/\/$/, '') : '';
-    return `${base}${url}`;
+  if (!url || typeof url !== 'string') return '';
+  const rawBase = import.meta.env.VITE_SERVER_URL || '';
+  const base = rawBase.replace(/\/$/, '');
+
+  // Already a full URL
+  if (url.startsWith('https://') || url.startsWith('http://')) {
+    // Rewrite localhost/127.0.0.1 references to the configured remote backend
+    const isLocalBackend = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
+    if (isLocalBackend) {
+      const remoteBase = base && !base.includes('localhost') && !base.includes('127.0.0.1')
+        ? base
+        : 'https://framehouse-r7yy.onrender.com';
+      return url.replace(/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, remoteBase);
+    }
+
+    // Mixed content guard: if the page is HTTPS and the URL is HTTP, upgrade it.
+    // This covers any http:// backend URL returned when running on an HTTPS host.
+    if (
+      url.startsWith('http://') &&
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:'
+    ) {
+      return url.replace(/^http:\/\//, 'https://');
+    }
+
+    return url;
   }
-  if (url.includes('localhost:5000') && import.meta.env.VITE_SERVER_URL) {
-    const base = import.meta.env.VITE_SERVER_URL.replace(/\/$/, '');
-    return url.replace(/http:\/\/localhost:5000/, base);
+
+  // Relative URL — prefix with the configured backend base
+  if (url.startsWith('/')) {
+    return base ? `${base}${url}` : url;
   }
+
   return url;
 }
 
@@ -74,7 +98,8 @@ export async function uploadPhotoFile(eventId, file, onProgress) {
   const { photoId, presignedUrl } = uploadData;
 
   // 2. Upload file binary directly to Presigned URL
-  await axios.put(presignedUrl, file, {
+  const targetUploadUrl = resolveImageUrl(presignedUrl);
+  await axios.put(targetUploadUrl, file, {
     headers: { 'Content-Type': file.type || 'image/jpeg' },
     onUploadProgress: (progressEvent) => {
       if (onProgress && progressEvent.total) {
