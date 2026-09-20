@@ -1,0 +1,149 @@
+name: Deploy — Production
+
+# Triggers only after CI passes on main.
+# Vercel and Render both also have their own GitHub integrations that
+# auto-deploy on push — this workflow exists as an explicit, auditable
+# deploy step and provides deployment status in the PR/commit timeline.
+
+on:
+  workflow_run:
+    workflows: ["CI — Test & Build"]
+    types: [completed]
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Guard: only deploy when CI passed
+  # ───────────────────────────────────────────────────────────────────────────
+  check-ci:
+    name: ✅ Verify CI passed
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: CI passed — proceeding to deploy
+        run: echo "CI workflow completed successfully. Deploying..."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Deploy Backend → Render
+  # Uses Render Deploy Hook stored as a GitHub Secret.
+  # To get your deploy hook: Render dashboard → Service → Settings → Deploy Hook
+  # Add it as secret RENDER_DEPLOY_HOOK_URL in GitHub repo settings.
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-backend:
+    name: 🚀 Deploy Backend → Render
+    runs-on: ubuntu-latest
+    needs: check-ci
+    environment:
+      name: production-backend
+      url: https://framehouse-r7yy.onrender.com
+
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          curl --silent --show-error --fail \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        # If RENDER_DEPLOY_HOOK_URL is not set, skip gracefully
+        continue-on-error: true
+
+      - name: Wait for Render to come online (up to 3 minutes)
+        run: |
+          echo "Waiting for backend health check..."
+          for i in $(seq 1 36); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              https://framehouse-r7yy.onrender.com/health || echo "000")
+            echo "Attempt $i — HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Backend is live"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "⚠️  Backend did not respond in time — check Render dashboard"
+          exit 1
+        continue-on-error: true
+
+      - name: Print backend health
+        run: |
+          curl -s https://framehouse-r7yy.onrender.com/health | \
+            python3 -m json.tool || true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Deploy Frontend → Vercel
+  # Uses Vercel CLI with project/org/token stored as GitHub Secrets:
+  #   VERCEL_TOKEN    — from vercel.com → Settings → Tokens
+  #   VERCEL_ORG_ID   — from .vercel/project.json after `vercel link`
+  #   VERCEL_PROJECT_ID — same file
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: 🌐 Deploy Frontend → Vercel
+    runs-on: ubuntu-latest
+    needs: check-ci
+    environment:
+      name: production-frontend
+      url: https://framehouse-eight.vercel.app
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment info
+        run: |
+          vercel pull --yes --environment=production \
+            --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        # Skip gracefully if Vercel secrets not yet configured
+        continue-on-error: true
+
+      - name: Build for Vercel production
+        run: |
+          vercel build --prod \
+            --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VITE_SERVER_URL: ${{ secrets.VITE_SERVER_URL || 'https://framehouse-r7yy.onrender.com' }}
+        continue-on-error: true
+
+      - name: Deploy to Vercel production
+        run: |
+          vercel deploy --prebuilt --prod \
+            --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        continue-on-error: true
+
+      - name: Verify frontend is live
+        run: |
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://framehouse-eight.vercel.app || echo "000")
+          echo "Frontend HTTP status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Frontend is live"
+          else
+            echo "⚠️  Frontend check returned $STATUS — verify on Vercel dashboard"
+          fi
+        continue-on-error: true

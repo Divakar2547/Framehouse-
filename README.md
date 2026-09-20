@@ -1,495 +1,333 @@
-# Framehouse – Event Photo Sharing & Client Gallery Platform
+# Framehouse
 
-Framehouse is a full-stack platform built for event photography teams and studios. It simplifies the entire photo pipeline: lead photographers can organize events and assign crew members, photographers can upload high-resolution originals directly to cloud storage, the backend automatically generates optimized web variants and custom watermarks, and clients can securely browse, favorite, and download their photos behind a private PIN-protected gallery.
+Framehouse is a full-stack event photo workflow for studios, photographers, and clients. It gives teams a single place to manage events, upload raw images, curate galleries, and share a private client-facing gallery protected by a PIN.
 
----
-
-## 📑 Table of Contents
-
-- [Project Overview](#-project-overview)
-- [Key Features & User Roles](#-key-features--user-roles)
-- [Technology Stack](#-technology-stack)
-- [System Architecture](#-system-architecture)
-  - [High-Level Data Flow](#high-level-data-flow)
-  - [Presigned Upload & Processing Sequence](#presigned-upload--processing-sequence)
-  - [PIN Verification & Client Session Flow](#pin-verification--client-session-flow)
-- [Database Design](#-database-design)
-  - [Entity Relationship Diagram](#entity-relationship-diagram)
-  - [Core Data Models & Indexing](#core-data-models--indexing)
-- [Local Setup Instructions](#-local-setup-instructions)
-  - [1. Prerequisites](#1-prerequisites)
-  - [2. Clone & Install](#2-clone--install)
-  - [3. Configure Environment Variables](#3-configure-environment-variables)
-  - [4. Setup Local MongoDB Replica Set](#4-setup-local-mongodb-replica-set)
-  - [5. Initialize Database & Seed Sample Data](#5-initialize-database--seed-sample-data)
-  - [6. Start Development Servers](#6-start-development-servers)
-- [Environment Variables](#-environment-variables)
-  - [Backend (`server/.env`)](#backend-serverenv)
-  - [Frontend (`client/.env`)](#frontend-clientenv)
-- [API Reference](#-api-reference)
-- [Default Demo Credentials](#-default-demo-credentials)
-- [Production Deployment Guide](#-production-deployment-guide)
-  - [1. MongoDB Atlas Setup](#1-mongodb-atlas-setup)
-  - [2. AWS S3 Bucket & IAM Configuration](#2-aws-s3-bucket--iam-configuration)
-  - [3. Backend Deployment (Render / Railway)](#3-backend-deployment-render--railway)
-  - [4. Frontend Deployment (Vercel / Netlify)](#4-frontend-deployment-vercel--netlify)
-- [Known Limitations & Roadmap](#-known-limitations--roadmap)
-- [License](#-license)
+This project is set up as a real application with:
+- a React + Vite front end
+- an Express + Prisma + MongoDB back end
+- AWS S3-compatible storage with a local mock fallback
+- Sharp-based image processing for thumbnails and gallery variants
+- Docker Compose support for local development
 
 ---
 
-## 📸 Project Overview
+## Overview
 
-Managing photography assets for weddings, corporate galas, and live concerts is notoriously messy:
-- Passing around external hard drives or clunky Google Drive folders causes version mismatch and slow transfers.
-- Sending raw files directly through a web application server consumes excessive CPU, memory, and bandwidth.
-- Giving clients access to raw galleries without watermarks or download controls risks unauthorized use.
+The app is designed for modern photo studios and event teams that need to:
+- manage multiple events and team assignments
+- upload and organize a large number of images
+- present selected shots in a polished client gallery
+- keep gallery access private using a PIN and cookie-based session
+- allow clients to favorite and download approved images
 
-**Framehouse** tackles these problems by decoupling file delivery from API orchestration:
-1. **Direct-to-S3 Uploads**: Photographers upload multi-gigabyte sets of photos straight from the browser to AWS S3 using secure, short-lived presigned URLs. The Node.js API server never has to buffer heavy multi-part payloads.
-2. **Automated Variant Pipeline**: Once an original file lands in storage, the server uses Sharp to generate responsive image derivatives (400px thumbnail, 1000px medium, 1600px gallery preview) with optional SVG studio watermarking.
-3. **Curated Client Delivery**: Studio admins select the best shots, create a client-ready gallery, configure permissions (e.g. allow high-res downloads, enforce watermarks, set expiry), and generate a 6-digit numeric PIN.
-4. **Client Guest Experience**: Clients and event attendees visit a sleek, password-free gallery page, enter the 6-digit PIN, explore pictures in a masonry layout with lightbox preview, favorite their picks, and download singles or full albums.
-
----
-
-## 👥 Key Features & User Roles
-
-### 1. Studio Admin (`ADMIN`)
-- **Event Management**: Create, edit, archive events with dates, locations, and cover banners.
-- **Team Delegation**: Assign and revoke event access for team photographers.
-- **Photo Curation**: Bulk-select, reorder, tag, or delete incoming photos.
-- **Gallery Publishing**: Create customizable client galleries with custom URLs (`/gallery/:slug`), set 6-digit PINs, configure watermark visibility, toggle full-res downloads, and set expiration dates.
-- **Analytics & Audit Logs**: Monitor gallery view counts, photo download tallies, client favorites, and workspace audit trails.
-
-### 2. Team Photographer (`TEAM_MEMBER`)
-- **Restricted Access**: View only events they have been assigned to by the studio lead.
-- **Batch Uploading**: Multi-file drag-and-drop upload queue with real-time progress bars and checksum verification.
-- **Status Tracking**: Live updates as photos transition from `UPLOADING` to `PROCESSING` to `READY`.
-
-### 3. Event Client / Guest (Public with PIN)
-- **Zero Account Friction**: No signup or password needed; authenticate via a simple 6-digit PIN.
-- **Protected Sessions**: Secure, signed, `httpOnly` gallery session cookie valid for 8 hours.
-- **Photo Interactions**: Browse optimized masonry view, zoom in via responsive lightbox, toggle favorites, and request signed high-res downloads.
+The workflow is intentionally simple:
+1. A studio admin creates an event and assigns team members.
+2. Photographers upload images to the project.
+3. The backend processes the files and stores optimized variants.
+4. A gallery is created, curated, and published.
+5. Clients open a public gallery, verify a PIN, and browse/download approved photos.
 
 ---
 
-## 🛠 Technology Stack
+## Key features
 
-### Frontend Application
-- **Core**: React 18 with Vite for fast HMR and optimized production bundles.
-- **Routing**: React Router v6.
-- **Server State & Caching**: TanStack React Query v5 for optimistic updates, background caching, and automatic refetching.
-- **Styling**: Vanilla CSS design system with CSS custom properties (variables), modern typography, glassmorphism overlays, and smooth micro-transitions.
-- **Icons**: Lucide React.
-- **Testing**: Vitest + React Testing Library.
+### Studio/admin side
+- create and manage events
+- assign photographers to specific events
+- view dashboard metrics and recent activity
+- upload photo batches for an event
+- curate selected images into a client gallery
+- publish a gallery with PIN protection and download controls
+- view analytics on published galleries
 
-### Backend API
-- **Runtime**: Node.js (native ES Modules).
-- **Framework**: Express.js with JSON body parsers, cookie-parser, and CORS.
-- **ORM & Data Layer**: Prisma ORM v5 with MongoDB provider.
-- **Validation**: Zod schema validators for request parameters, bodies, and query strings.
-- **Security**: Helmet headers, bcryptjs password & PIN hashing, constant-time hash comparisons, and express-rate-limit.
-- **Testing**: Jest + Supertest.
+### Team member side
+- sign in with a staff account
+- view assigned events only
+- upload images for event projects
+- monitor image readiness and gallery status
 
-### Storage & Image Processing
-- **Object Storage**: AWS S3 via `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`.
-- **Local Fallback**: Built-in in-memory / local mock storage engine when AWS credentials are not configured, enabling 100% offline local development.
-- **Image Pipeline**: Sharp (libvips) for high-speed WebP/JPEG transformations, metadata extraction (width, height, EXIF), and dynamic SVG watermark compositing.
+### Client/public side
+- access a gallery by unique slug
+- enter a 6-digit PIN to unlock the gallery
+- browse approved photos in a simple gallery experience
+- favorite images during the session
+- download images if the admin has enabled downloads
 
 ---
 
-## 🏛 System Architecture
+## Tech stack
 
-### High-Level Data Flow
+### Frontend
+- React 18
+- Vite
+- React Router
+- TanStack React Query
+- CSS custom styling
+- Lucide icons
 
-```
-+---------------------------------------------------------------------------------------+
-|                                    CLIENT BROWSER                                     |
-+------------------------------------+------------------------------------+-------------+
-                                     |                                    |
-          1. REST API / Auth / JSON  |          2. Direct S3 Upload (PUT) |  3. View Images (GET)
-                                     v                                    v
-+------------------------------------+------------+     +-------------------------------+
-|                 EXPRESS BACKEND                 |     |            AWS S3             |
-|                                                 |     |        (Object Storage)       |
-|  - Role-Based Auth (Admin / Team)               |     |                               |
-|  - Rate Limiting & Zod Validation               |     |  - events/:id/originals/*     |
-|  - Presigned S3 URL Generator                   |     |  - events/:id/thumbnails/*    |
-|  - Upload Completion & Metadata Record          |     |  - events/:id/medium/*        |
-|  - Sharp Image Processor (Variants + Watermark) |     |  - events/:id/gallery/*       |
-+--------------------+----------------------------+     +---------------+---------------+
-                     |                                                  ^
-                     | Prisma Transactions                              |
-                     v                                                  | Server pushes
-+--------------------+----------------------------+                     | processed variants
-|                    MONGODB                      |---------------------+
-|  (Users, Events, Photos, Galleries, Sessions)   |
-+-------------------------------------------------+
-```
+### Backend
+- Node.js
+- Express
+- Prisma ORM
+- MongoDB
+- Zod validation
+- JWT auth and gallery session handling
+- Helmet, CORS, rate limiting
 
-### Presigned Upload & Processing Sequence
+### Media and storage
+- Sharp for image resizing and generation
+- AWS S3 support via AWS SDK
+- local mock storage fallback when AWS credentials are not configured
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Photog as Photographer (Browser)
-    participant API as Express API Server
-    participant S3 as AWS S3 Storage
-    participant DB as MongoDB (Prisma)
+---
 
-    Photog->>API: POST /api/events/:id/photos/upload-url (filename, mimeType, size, checksum)
-    API->>API: Verify user membership & file constraints
-    API->>S3: Generate Presigned PUT URL (15 min expiry)
-    API->>DB: Insert Photo record (status: UPLOADING)
-    API-->>Photog: Return { photoId, uploadUrl, storageKey }
+## Project structure
 
-    Photog->>S3: PUT binary image data directly to S3
-    S3-->>Photog: 200 OK (ETag header)
-
-    Photog->>API: POST /api/events/:id/photos/complete (photoId)
-    API->>S3: Fetch original raw image stream
-    API->>API: Run Sharp (generate thumbnail, medium, and gallery preview + watermark)
-    API->>S3: Put thumbnail, medium, and gallery objects
-    API->>DB: Update Photo record (status: READY, dimensions, variant keys)
-    API-->>Photog: Return updated photo details
-```
-
-### PIN Verification & Client Session Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Guest as Client / Guest
-    participant API as Express API Server
-    participant DB as MongoDB (Prisma)
-    participant S3 as AWS S3 Storage
-
-    Guest->>API: GET /api/public/gallery/:slug
-    API->>DB: Fetch public gallery info (title, event name, photo count, requires PIN)
-    API-->>Guest: Return public metadata
-
-    Guest->>API: POST /api/public/gallery/:slug/verify-pin (6-digit PIN)
-    API->>DB: Look up gallery by slug & retrieve pinHash
-    API->>API: bcrypt.compare(enteredPIN, pinHash) with rate limiting
-    API->>DB: Create GalleryAccess record (8-hour expiration)
-    API-->>Guest: Set HttpOnly Cookie ('gallery_session') + Success response
-
-    Guest->>API: GET /api/public/gallery/:slug/photos (with cookie)
-    API->>API: Validate session cookie against GalleryAccess table
-    API->>DB: Fetch published photos in gallery order
-    API->>S3: Generate short-lived signed GET URLs for previews
-    API-->>Guest: Return photo list with signed image URLs
-
-    Guest->>API: POST /api/public/gallery/:slug/photos/:id/download
-    API->>API: Verify gallery.allowDownloads === true
-    API->>S3: Generate signed original high-res download URL with Content-Disposition
-    API-->>Guest: Return download URL & log PhotoDownload count
+```text
+.
+├── client/                  # React client app
+│   ├── src/
+│   ├── package.json
+│   ├── .env.example
+│   └── vite.config.js
+├── server/                 # Express + Prisma API
+│   ├── src/
+│   ├── prisma/
+│   ├── tests/
+│   ├── package.json
+│   ├── .env.example
+│   └── jest.config.js
+├── docker/                 # Mongo init and container support
+├── docker-compose.yml      # local full-stack setup
+├── README.md
+└── package.json            # repo root (if present in your checkout)
 ```
 
 ---
 
-## 🗄 Database Design
+## Local development
 
-The database runs on **MongoDB** accessed through **Prisma ORM**. A MongoDB Replica Set (`rs0`) is required to support multi-document ACID transactions.
+### Option 1: Docker (recommended)
 
-### Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    User ||--o{ Event : "owns"
-    User ||--o{ EventMember : "is member of"
-    User ||--o{ Photo : "uploads"
-    User ||--o{ AuditLog : "triggers"
-    User ||--o{ Notification : "receives"
-
-    Event ||--o{ EventMember : "has"
-    Event ||--o{ Photo : "contains"
-    Event ||--o{ Gallery : "publishes"
-    Event ||--o{ AuditLog : "logged in"
-
-    Gallery ||--o{ GalleryPhoto : "includes"
-    Photo ||--o{ GalleryPhoto : "placed in"
-    Gallery ||--o{ GalleryAccess : "grants"
-    Gallery ||--o{ GalleryView : "tracked by"
-    Gallery ||--o{ PhotoFavorite : "collected in"
-    Gallery ||--o{ PhotoDownload : "records"
-    Photo ||--o{ PhotoFavorite : "favorited"
-    Photo ||--o{ PhotoDownload : "downloaded"
-    GalleryAccess ||--o{ PhotoFavorite : "associated with"
-
-    User {
-        string id PK
-        string name
-        string email UK
-        string passwordHash
-        string role "ADMIN | TEAM_MEMBER"
-        boolean isActive
-    }
-
-    Event {
-        string id PK
-        string name
-        string description
-        datetime eventDate
-        string location
-        string status "UPCOMING | IN_PROGRESS | COMPLETED | ARCHIVED"
-        string ownerId FK
-    }
-
-    EventMember {
-        string id PK
-        string eventId FK
-        string userId FK
-        datetime assignedAt
-    }
-
-    Photo {
-        string id PK
-        string eventId FK
-        string uploadedById FK
-        string filename
-        string storageKey
-        string thumbnailStorageKey
-        string mediumStorageKey
-        string galleryStorageKey
-        string mimeType
-        bigint fileSize
-        int width
-        int height
-        string checksum
-        string status "UPLOADING | PROCESSING | READY | FAILED"
-        boolean isSelected
-    }
-
-    Gallery {
-        string id PK
-        string eventId FK
-        string title
-        string slug UK
-        string pinHash
-        string status "DRAFT | PUBLISHED | ARCHIVED"
-        boolean isPublished
-        boolean allowDownloads
-        boolean showWatermark
-        string watermarkText
-        int viewCount
-        int downloadCount
-        datetime expiresAt
-    }
-
-    GalleryPhoto {
-        string id PK
-        string galleryId FK
-        string photoId FK
-        int sortOrder
-    }
-
-    GalleryAccess {
-        string id PK
-        string galleryId FK
-        string sessionTokenHash UK
-        datetime expiresAt
-        datetime lastUsedAt
-    }
-```
-
-### Core Data Models & Indexing
-
-| Model | Purpose | Key Indexes |
-|---|---|---|
-| **`User`** | Studio staff and leads. Stores auth credentials and global roles (`ADMIN`, `TEAM_MEMBER`). | `email` (unique) |
-| **`Event`** | Photography shoot or wedding project owned by an Admin. | `ownerId`, `eventDate`, `status` |
-| **`EventMember`** | Team assignment join table granting photographers access to specific events. | `[eventId, userId]` (unique compound), `eventId`, `userId` |
-| **`Photo`** | Lifecycle and storage metadata for uploaded images. | `eventId`, `uploadedById`, `status`, `isSelected`, `[checksum, eventId]` |
-| **`Gallery`** | Published client portal with PIN protection and display policies. | `slug` (unique), `eventId`, `isPublished`, `status` |
-| **`GalleryPhoto`** | Ordered collection of curated photos belonging to a gallery. | `[galleryId, photoId]` (unique compound), `[galleryId, sortOrder]` |
-| **`GalleryAccess`** | Active 8-hour guest sessions authenticated via the 6-digit PIN. | `sessionTokenHash` (unique), `galleryId`, `expiresAt` |
-| **`PhotoFavorite`** | Guest favorite selections tracked per gallery session. | `[galleryId, photoId, sessionId]` (unique compound) |
-| **`GalleryView`** | Visitor analytics log tracking gallery traffic. | `galleryId`, `viewedAt` |
-| **`PhotoDownload`** | Audit trail for full-resolution photo downloads. | `galleryId`, `photoId`, `downloadedAt` |
-| **`AuditLog`** | Operational security log of all admin actions and assignments. | `userId`, `eventId`, `action`, `createdAt` |
-| **`Notification`** | In-app alerts for studio members (new assignments, uploads completed). | `userId`, `isRead`, `createdAt` |
-
----
-
-## 🚀 Local Setup Guide
-
-### 1. Prerequisites
-- **Node.js**: v18.0.0 or higher (v20+ recommended).
-- **npm**: v9.0.0 or higher.
-- **MongoDB**: v6.0+ running as a **replica set** (required for Prisma transactions).
-
----
-
-### 2. Clone & Install
+1. Copy environment files:
 
 ```bash
-# Clone repository
-git clone https://github.com/Divakar2547/Framehouse-.git
-cd Framehouse-
+copy server\.env.example server\.env
+copy client\.env.example client\.env
+```
 
-# Install backend dependencies
+2. Start the app:
+
+```bash
+docker compose up --build
+```
+
+3. Seed demo data:
+
+```bash
+docker compose run --rm server npm run db:seed
+```
+
+4. Open:
+- Frontend: http://localhost:5173
+- Backend: http://localhost:5000/health
+
+The Docker setup launches:
+- MongoDB replica set on port 27017
+- Express API on port 5000
+- Vite dev server on port 5173
+
+---
+
+### Option 2: Manual local setup
+
+#### 1) Install dependencies
+
+```bash
 cd server
 npm install
 
-# Install frontend dependencies
 cd ../client
 npm install
 ```
 
----
+#### 2) Set up MongoDB as a replica set
 
-### 3. Configure Environment Variables
+This project uses Prisma with MongoDB, and the app expects a replica set for transactions.
 
-Create `.env` inside the `server/` directory:
+The simplest local setup is:
 
 ```bash
-# server/.env
+docker run -d --name mongo-replica -p 27017:27017 mongo:7.0 --replSet rs0
+docker exec -it mongo-replica mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+```
 
+#### 3) Configure environment variables
+
+Server .env example:
+
+```env
 NODE_ENV=development
 PORT=5000
 CLIENT_URL=http://localhost:5173
 SERVER_URL=http://localhost:5000
-
-# MongoDB Replica Set connection URL
 DATABASE_URL="mongodb://127.0.0.1:27017/event_photo_gallery?replicaSet=rs0&directConnection=true"
-
-# Secrets (use strong random strings in production)
-JWT_SECRET=dev-jwt-secret-key-at-least-32-chars-long
+JWT_SECRET=change_this_to_a_long_secure_secret
 JWT_EXPIRES_IN=7d
-GALLERY_SESSION_SECRET=dev-gallery-session-secret-key-32-chars
-
-# AWS S3 Storage (Leave blank to use the built-in Local Mock Storage)
+GALLERY_SESSION_SECRET=change_this_to_another_long_secure_secret
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_S3_BUCKET=
-
-# Upload & Rate Limits
 MAX_FILE_SIZE=52428800
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX=100
 PIN_RATE_LIMIT_MAX=5
 ```
 
-Create `.env` inside the `client/` directory (optional for local dev since Vite defaults to localhost):
+Client .env example:
 
-```bash
-# client/.env
+```env
 VITE_SERVER_URL=http://localhost:5000
 ```
 
-> **Local Mock Storage Note**: If `AWS_ACCESS_KEY_ID` is left empty, the server automatically boots an in-memory/local mock storage engine. You do NOT need an active AWS account to run, test, and develop Framehouse locally.
+> If AWS credentials are left blank, the server falls back to built-in mock local storage and still runs for development and testing.
 
----
-
-### 4. Setup Local MongoDB Replica Set
-
-Prisma requires MongoDB to run as a replica set even locally. You can set this up either using Docker or with your native MongoDB installation:
-
-#### Option A: Using Docker (Fastest)
-
-```bash
-docker run -d --name mongo-replica \
-  -p 27017:27017 \
-  mongo:7.0 --replSet rs0
-
-# Initialize replica set
-docker exec -it mongo-replica mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-```
-
-#### Option B: Using Native Local MongoDB
-
-If running MongoDB locally via command line:
-```bash
-# Start mongod with replica set flag
-mongod --dbpath /path/to/data --replSet rs0 --port 27017
-
-# In a separate terminal, initiate the replica set
-mongosh --eval "rs.initiate()"
-```
-
----
-
-### 5. Initialize Database & Seed Sample Data
+#### 4) Initialize Prisma and seed data
 
 ```bash
 cd server
-
-# Generate Prisma Client code
 npx prisma generate
-
-# Push schema directly to MongoDB
 npx prisma db push
-
-# Seed demo users, events, photos, and sample client gallery
 npm run db:seed
 ```
 
----
-
-### 6. Start Development Servers
-
-Open two terminal windows:
+#### 5) Run the app
 
 ```bash
-# Terminal 1: Backend Server (runs on http://localhost:5000)
+# Terminal 1
 cd server
 npm run dev
-```
 
-```bash
-# Terminal 2: Frontend Client (runs on http://localhost:5173)
+# Terminal 2
 cd client
 npm run dev
 ```
 
-Open your browser and navigate to `http://localhost:5173`.
+---
+
+## Demo accounts and sample galleries
+
+The seeded demo data includes a main admin account and team member accounts.
+
+### Admin
+- Email: admin@framehouse.com
+- Password: Admin@123456
+
+### Team member
+- Email: photographer@framehouse.com
+- Password: Member@123456
+
+### Public demo galleries
+- Arjun & Priya Royal Wedding
+  - slug: /gallery/arjun-priya-wedding-2026
+  - PIN: 482917
+- Neon Waves Music Festival
+  - slug: /gallery/neon-waves-music-festival-2026
+  - PIN: 983421
+- Metropolis Fashion Gala
+  - slug: /gallery/metropolis-fashion-gala-2026
+  - PIN: 654321
 
 ---
 
-## 🔐 Environment Variables
+## Available scripts
 
-### Backend (`server/.env`)
+### Backend
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `NODE_ENV` | Yes | `development` | Runtime environment (`development`, `production`, `test`). |
-| `PORT` | No | `5000` | Port for Express server to listen on. |
-| `CLIENT_URL` | Yes | `http://localhost:5173` | Allowed origin for CORS headers and cookie sharing. |
-| `SERVER_URL` | Yes | `http://localhost:5000` | Base URL of the backend API server. |
-| `DATABASE_URL` | Yes | — | MongoDB connection string (must include `replicaSet` query parameter). |
-| `JWT_SECRET` | Yes | — | 32+ character secret for signing user authentication JWTs. |
-| `JWT_EXPIRES_IN` | No | `7d` | Expiration lifespan of JWT tokens (`1d`, `7d`, `30d`). |
-| `GALLERY_SESSION_SECRET` | Yes | — | Secret key used to sign guest gallery access tokens. |
-| `AWS_REGION` | No | `us-east-1` | AWS region where the S3 bucket is hosted. |
-| `AWS_ACCESS_KEY_ID` | No | `""` | AWS IAM Access Key. If omitted, server falls back to mock storage. |
-| `AWS_SECRET_ACCESS_KEY` | No | `""` | AWS IAM Secret Access Key. |
-| `AWS_S3_BUCKET` | No | `""` | Name of the private S3 bucket. |
-| `MAX_FILE_SIZE` | No | `52428800` | Maximum upload file size in bytes (default: 50MB). |
-| `RATE_LIMIT_WINDOW_MS` | No | `900000` | Rate limiter window in milliseconds (default: 15 mins). |
-| `RATE_LIMIT_MAX` | No | `100` | Max API requests per IP in the window. |
-| `PIN_RATE_LIMIT_MAX` | No | `5` | Max PIN verification attempts per IP in the window. |
+```bash
+cd server
+npm run dev
+npm test
+npm run db:push
+npm run db:generate
+npm run db:seed
+```
 
-### Frontend (`client/.env`)
+### Frontend
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `VITE_SERVER_URL` | Yes (in prod) | `""` (proxied in dev) | Base URL pointing to the deployed backend API (e.g., `https://api.yourdomain.com`). |
+```bash
+cd client
+npm run dev
+npm run build
+npm run test
+npm run test:e2e
+```
 
 ---
 
-## 📡 API Reference
+## API behavior
 
-### Authentication
-- `POST /api/auth/login` — Sign in with email and password. Sets `httpOnly` JWT cookie.
-- `POST /api/auth/register` — Register a new studio admin account.
-- `POST /api/auth/logout` — Clear auth cookie.
-- `GET /api/auth/me` — Return authenticated user's profile and permissions.
+The backend exposes routes for:
+- auth: login, register, logout, current user
+- events: create and manage studio events
+- photos: upload-url generation, processing status, metadata
+- galleries: create, publish, update, pin management
+- public galleries: view gallery information, verify PIN, fetch images
+- analytics: gallery and activity stats
 
-### Events & Team Management
-- `GET /api/events` — List all accessible events (Admins see all; Team members see assigned only).
+The app is designed so that uploads happen directly to storage when possible, reducing server load and speeding up large photo batches.
+
+---
+
+## Production notes
+
+For production, set the environment values to real secrets and deploy the backend and frontend separately. In practice:
+- backend: MongoDB Atlas + Render/Railway/Fly.io-style service
+- frontend: Vercel or similar static hosting
+- object storage: AWS S3 or S3-compatible bucket
+- set secure values for `JWT_SECRET`, `GALLERY_SESSION_SECRET`, and database credentials
+
+The app already contains hardened defaults for CORS, cookie handling, rate limiting, and public gallery session management.
+
+---
+
+## Troubleshooting
+
+### MongoDB connection errors
+- ensure MongoDB is running with a replica set
+- confirm `DATABASE_URL` includes `replicaSet=rs0` in local development
+
+### Frontend cannot reach API
+- verify `VITE_SERVER_URL` matches your backend origin
+- check that backend CORS allows your frontend origin
+
+### Gallery PIN not working
+- confirm the gallery exists and is published
+- verify the database has been seeded
+- confirm the `pinHash` is created during gallery creation
+
+### Local uploads not processing
+- check that the server has valid S3 credentials or that the mock storage fallback is enabled
+- confirm the app is pointing to the correct environment variables
+
+---
+
+## License
+
+This project is currently intended for internal studio or demo use. Add an explicit license file if you plan to distribute it publicly.
+
+---
+
+## Summary
+
+Framehouse is a practical event-photo gallery platform built around the real workflow photographers and studios use: organize events, upload media, curate the best images, and share them with clients through a secure, polished gallery experience.
+
+If you want, the next step can be to add:
+- a deployment section for Render + Vercel
+- a more detailed API route list
+- screenshots or architecture diagrams
+- optional CI/CD setup instructions
 - `POST /api/events` — Create a new event shoot *(Admin only)*.
 - `GET /api/events/:id` — Get single event details with upload statistics.
 - `PUT /api/events/:id` — Update event details *(Admin only)*.
