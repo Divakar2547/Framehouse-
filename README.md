@@ -1,83 +1,77 @@
 # Framehouse
 
-Framehouse is a full-stack event photo workflow for studios, photographers, and clients. It gives teams a single place to manage events, upload raw images, curate galleries, and share a private client-facing gallery protected by a PIN.
+Framehouse is a full-stack event photo gallery platform for studios, teams, and clients. It helps you manage events, upload photos, curate client galleries, and publish private galleries with a PIN-protected access flow.
 
-This project is set up as a real application with:
-- a React + Vite front end
-- an Express + Prisma + MongoDB back end
-- AWS S3-compatible storage with a local mock fallback
-- Sharp-based image processing for thumbnails and gallery variants
-- Docker Compose support for local development
+This repo contains:
+- a Vite + React frontend
+- an Express + Prisma + MongoDB backend
+- image handling and gallery publishing workflows
+- a client-facing public gallery experience with PIN verification
+- local development without Docker
 
 ---
 
 ## Overview
 
-The app is designed for modern photo studios and event teams that need to:
-- manage multiple events and team assignments
-- upload and organize a large number of images
-- present selected shots in a polished client gallery
-- keep gallery access private using a PIN and cookie-based session
-- allow clients to favorite and download approved images
+The product is designed around a real photography workflow:
+1. Admins create and manage events.
+2. Team members upload photos for an event.
+3. Photos are reviewed and selected for a gallery.
+4. A private gallery is published with a unique slug and PIN.
+5. Clients open the public gallery, verify the PIN, and browse approved images.
 
-The workflow is intentionally simple:
-1. A studio admin creates an event and assigns team members.
-2. Photographers upload images to the project.
-3. The backend processes the files and stores optimized variants.
-4. A gallery is created, curated, and published.
-5. Clients open a public gallery, verify a PIN, and browse/download approved photos.
+The app supports both internal studio usage and a polished client sharing flow.
 
 ---
 
-## Key features
+## Features
 
-### Studio/admin side
+### Studio/admin workflow
 - create and manage events
-- assign photographers to specific events
-- view dashboard metrics and recent activity
-- upload photo batches for an event
-- curate selected images into a client gallery
-- publish a gallery with PIN protection and download controls
-- view analytics on published galleries
+- assign staff and team members to events
+- upload and review event photos
+- select highlights for a client gallery
+- publish a gallery with a PIN
+- allow or disable downloads
+- manage gallery visibility and access
 
-### Team member side
-- sign in with a staff account
-- view assigned events only
-- upload images for event projects
-- monitor image readiness and gallery status
+### Team member workflow
+- sign in to the studio app
+- see assigned events
+- upload photos for event work
+- review image readiness and event status
 
-### Client/public side
-- access a gallery by unique slug
-- enter a 6-digit PIN to unlock the gallery
-- browse approved photos in a simple gallery experience
+### Client/public workflow
+- open a gallery via a unique slug
+- enter a 6-digit PIN to unlock access
+- browse gallery photos
 - favorite images during the session
-- download images if the admin has enabled downloads
+- download approved images when enabled
 
 ---
 
 ## Tech stack
 
 ### Frontend
-- React 18
+- React
 - Vite
 - React Router
 - TanStack React Query
-- CSS custom styling
-- Lucide icons
+- CSS modules and custom styling
 
 ### Backend
 - Node.js
 - Express
 - Prisma ORM
 - MongoDB
+- JWT auth
 - Zod validation
-- JWT auth and gallery session handling
-- Helmet, CORS, rate limiting
+- rate limiting and CORS protections
 
 ### Media and storage
-- Sharp for image resizing and generation
-- AWS S3 support via AWS SDK
-- local mock storage fallback when AWS credentials are not configured
+- Sharp for image processing
+- AWS S3-compatible storage support
+- local storage fallback when cloud storage is not configured
 
 ---
 
@@ -85,31 +79,30 @@ The workflow is intentionally simple:
 
 ```text
 .
-├── client/                  # React client app
+├── client/                  # Vite React frontend
 │   ├── src/
 │   ├── package.json
-│   ├── .env.example
-│   └── vite.config.js
+│   ├── vite.config.js
+│   └── vercel.json
 ├── server/                 # Express + Prisma API
 │   ├── src/
 │   ├── prisma/
 │   ├── tests/
 │   ├── package.json
-│   ├── .env.example
 │   └── jest.config.js
-├── docker/                 # Mongo init and container support
-├── docker-compose.yml      # local full-stack setup
+├── package.json            # repo-level build shim
+├── vercel.json             # Vercel routing config
 ├── README.md
-└── package.json            # repo root (if present in your checkout)
+└── storage/                # local storage data or runtime files
 ```
 
 ---
 
-## Local development
+## Local development setup
 
-Follow the manual local setup below. This project does not require Docker.
+This project is configured to run without Docker.
 
-#### 1) Install dependencies
+### 1) Install dependencies
 
 ```bash
 cd server
@@ -119,20 +112,22 @@ cd ../client
 npm install
 ```
 
-#### 2) Set up MongoDB as a replica set
+### 2) Start MongoDB
 
-This project uses Prisma with MongoDB, and the app expects a replica set for transactions.
+This project expects MongoDB to run locally with a replica set for Prisma transactions.
 
-The simplest local setup is:
+A standard local setup is:
 
 ```bash
-docker run -d --name mongo-replica -p 27017:27017 mongo:7.0 --replSet rs0
-docker exec -it mongo-replica mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+docker run -d --name framehouse-mongo -p 27017:27017 mongo:7.0 --replSet rs0
+docker exec -it framehouse-mongo mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
 ```
 
-#### 3) Configure environment variables
+If you already have MongoDB running locally, use that instead as long as it supports the replica set requirement.
 
-Server .env example:
+### 3) Configure environment variables
+
+Create a .env file in the server folder.
 
 ```env
 NODE_ENV=development
@@ -142,7 +137,7 @@ SERVER_URL=http://localhost:5000
 DATABASE_URL="mongodb://127.0.0.1:27017/event_photo_gallery?replicaSet=rs0&directConnection=true"
 JWT_SECRET=change_this_to_a_long_secure_secret
 JWT_EXPIRES_IN=7d
-GALLERY_SESSION_SECRET=change_this_to_another_long_secure_secret
+GALLERY_SESSION_SECRET=change_this_to_a_secure_secret
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
@@ -153,15 +148,16 @@ RATE_LIMIT_MAX=100
 PIN_RATE_LIMIT_MAX=5
 ```
 
-Client .env example:
+Create a .env file in the client folder if needed:
 
 ```env
 VITE_SERVER_URL=http://localhost:5000
+VITE_PUBLIC_SITE_URL=http://localhost:5173
 ```
 
-> If AWS credentials are left blank, the server falls back to built-in mock local storage and still runs for development and testing.
+> If AWS credentials are not provided, the app can still run using the fallback local storage behavior for development and testing.
 
-#### 4) Initialize Prisma and seed data
+### 4) Initialize Prisma and seed demo data
 
 ```bash
 cd server
@@ -170,33 +166,43 @@ npx prisma db push
 npm run db:seed
 ```
 
-#### 5) Run the app
+### 5) Run the app
+
+Terminal 1:
 
 ```bash
-# Terminal 1
 cd server
 npm run dev
+```
 
-# Terminal 2
+Terminal 2:
+
+```bash
 cd client
 npm run dev
 ```
 
+The frontend should run on:
+- http://localhost:5173
+
+The backend should run on:
+- http://localhost:5000
+
 ---
 
-## Demo accounts and sample galleries
+## Demo accounts
 
-The seeded demo data includes a main admin account and team member accounts.
+The app includes seeded demo data for testing.
 
-### Admin
+### Admin account
 - Email: admin@framehouse.com
 - Password: Admin@123456
 
-### Team member
+### Team member account
 - Email: photographer@framehouse.com
 - Password: Member@123456
 
-### Public demo galleries
+### Demo public galleries
 - Arjun & Priya Royal Wedding
   - slug: /gallery/arjun-priya-wedding-2026
   - PIN: 482917
@@ -211,7 +217,7 @@ The seeded demo data includes a main admin account and team member accounts.
 
 ## Available scripts
 
-### Backend
+### Server
 
 ```bash
 cd server
@@ -222,7 +228,7 @@ npm run db:generate
 npm run db:seed
 ```
 
-### Frontend
+### Client
 
 ```bash
 cd client
@@ -234,70 +240,64 @@ npm run test:e2e
 
 ---
 
-## API behavior
+## Production deployment notes
 
-The backend exposes routes for:
-- auth: login, register, logout, current user
-- events: create and manage studio events
-- photos: upload-url generation, processing status, metadata
-- galleries: create, publish, update, pin management
-- public galleries: view gallery information, verify PIN, fetch images
-- analytics: gallery and activity stats
+The app is designed to be deployed as a two-part system:
+- frontend: Vercel or similar static hosting
+- backend: Render, Railway, Fly.io, or another Node service
+- database: MongoDB Atlas or another managed MongoDB instance
+- storage: AWS S3 or an S3-compatible bucket
 
-The app is designed so that uploads happen directly to storage when possible, reducing server load and speeding up large photo batches.
+Recommended environment values for production:
+- JWT_SECRET
+- GALLERY_SESSION_SECRET
+- DATABASE_URL
+- VITE_SERVER_URL
+- VITE_PUBLIC_SITE_URL
+
+The frontend should use the public site URL, not localhost, when generating client gallery links.
 
 ---
 
-## Production notes
+## Important architecture notes
 
-For production, set the environment values to real secrets and deploy the backend and frontend separately. In practice:
-- backend: MongoDB Atlas + Render/Railway/Fly.io-style service
-- frontend: Vercel or similar static hosting
-- object storage: AWS S3 or S3-compatible bucket
-- set secure values for `JWT_SECRET`, `GALLERY_SESSION_SECRET`, and database credentials
-
-The app already contains hardened defaults for CORS, cookie handling, rate limiting, and public gallery session management.
+- The frontend is a client-side app and uses the backend API for gallery data and auth.
+- Public gallery routes are handled through the React app and are intended to work in production with SPA rewrites enabled.
+- The backend serves gallery and auth endpoints, while the frontend renders the public gallery experience.
+- The app is intentionally split so the studio dashboard and client gallery can be hosted and scaled independently.
 
 ---
 
 ## Troubleshooting
 
-### MongoDB connection errors
-- ensure MongoDB is running with a replica set
-- confirm `DATABASE_URL` includes `replicaSet=rs0` in local development
+### MongoDB connection issues
+- confirm MongoDB is online
+- verify the replica set is configured correctly
+- confirm the DATABASE_URL includes the required replica set connection settings
 
-### Frontend cannot reach API
-- verify `VITE_SERVER_URL` matches your backend origin
-- check that backend CORS allows your frontend origin
+### Frontend cannot reach the API
+- check VITE_SERVER_URL
+- confirm the backend is running
+- ensure CORS allows the frontend origin
 
-### Gallery PIN not working
-- confirm the gallery exists and is published
-- verify the database has been seeded
-- confirm the `pinHash` is created during gallery creation
+### Public gallery is not loading
+- verify the gallery slug exists in the database
+- confirm the gallery is published
+- check the PIN and gallery session logic
+- verify the frontend is deployed with rewrite rules for SPA routing
 
-### Local uploads not processing
-- check that the server has valid S3 credentials or that the mock storage fallback is enabled
-- confirm the app is pointing to the correct environment variables
-
----
-
-## License
-
-This project is currently intended for internal studio or demo use. Add an explicit license file if you plan to distribute it publicly.
+### Local upload or storage issues
+- confirm AWS credentials or storage settings are valid
+- verify the server can write to the configured storage destination
 
 ---
 
 ## Summary
 
-Framehouse is a practical event-photo gallery platform built around the real workflow photographers and studios use: organize events, upload media, curate the best images, and share them with clients through a secure, polished gallery experience.
+Framehouse is a practical event-photo gallery system that lets studios manage events, curate highlights, and share secure photo galleries with clients. It is built for real-world photography workflows, while keeping the setup simple enough for local development and production deployment.
 
-If you want, the next step can be to add:
-- a deployment section for Render + Vercel
-- a more detailed API route list
-- screenshots or architecture diagrams
-- optional CI/CD setup instructions
-- `POST /api/events` — Create a new event shoot *(Admin only)*.
-- `GET /api/events/:id` — Get single event details with upload statistics.
+This project does not rely on Docker for normal local usage, which keeps the setup lighter and easier to manage.
+
 - `PUT /api/events/:id` — Update event details *(Admin only)*.
 - `DELETE /api/events/:id` — Delete event and related photos *(Admin only)*.
 - `GET /api/events/team-members` — Search all studio photographers for assignment.
