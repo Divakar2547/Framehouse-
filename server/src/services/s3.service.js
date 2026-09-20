@@ -90,10 +90,26 @@ const sendS3Command = (command) => s3Client.send(command);
  * The presigned URL expires in 15 minutes.
  */
 // The public-facing server origin used in mock URLs.
-// Strips trailing slash and ensures HTTPS in production.
+// Priority: 1) SERVER_URL env var  2) self-detect from request host (set at startup)
+// Strips trailing slash. Never falls back to localhost in production.
+let _detectedOrigin = null;
+
+export function setDetectedOrigin(origin) {
+  if (origin && !_detectedOrigin) {
+    _detectedOrigin = origin.replace(/\/$/, '');
+  }
+}
+
 function getServerOrigin() {
-  const raw = env.SERVER_URL || 'http://localhost:5000';
-  return raw.replace(/\/$/, '');
+  const fromEnv = env.SERVER_URL;
+  // Use env var if it's a real remote URL
+  if (fromEnv && !fromEnv.includes('localhost') && !fromEnv.includes('127.0.0.1')) {
+    return fromEnv.replace(/\/$/, '');
+  }
+  // Fall back to self-detected origin from first real request
+  if (_detectedOrigin) return _detectedOrigin;
+  // Last resort: localhost for dev only
+  return fromEnv?.replace(/\/$/, '') || 'http://localhost:5000';
 }
 
 export async function generateUploadPresignedUrl(

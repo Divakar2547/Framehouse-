@@ -14,7 +14,7 @@ import publicRoutes from './routes/public.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 
-import { mockStorage } from './services/s3.service.js';
+import { mockStorage, setDetectedOrigin } from './services/s3.service.js';
 
 const app = express();
 
@@ -79,6 +79,17 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
 // ─── Root & Health check ──────────────────────────────────────────────────────
+
+// Self-detect server origin from the first real inbound request.
+// This covers the case where SERVER_URL env var is not set on Render/Railway.
+app.use((req, _res, next) => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    setDetectedOrigin(`${proto}://${host}`);
+  }
+  next();
+});
 
 app.get('/', (_req, res) => {
   res.json({
