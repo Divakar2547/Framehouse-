@@ -4,54 +4,75 @@ const API_BASE = import.meta.env.VITE_SERVER_URL
   ? `${import.meta.env.VITE_SERVER_URL.replace(/\/$/, '')}/api`
   : '/api';
 
-export const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+// The configured remote backend origin (no trailing slash)
+const REMOTE_BACKEND = (import.meta.env.VITE_SERVER_URL || 'https://framehouse-r7yy.onrender.com')
+  .replace(/\/$/, '');
 
-api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('framehouse_token') : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-export const unwrap = (request) => request.then((response) => response.data);
+// ─── URL rewriter ─────────────────────────────────────────────────────────────
+// Rewrites any http://localhost:PORT or http://127.0.0.1:PORT URL to the
+// correct remote backend, and upgrades plain http:// to https:// when the
+// page is served over HTTPS (mixed content guard).
 
 export function resolveImageUrl(url) {
   if (!url || typeof url !== 'string') return '';
-  const rawBase = import.meta.env.VITE_SERVER_URL || '';
-  const base = rawBase.replace(/\/$/, '');
 
-  // Already a full URL
-  if (url.startsWith('https://') || url.startsWith('http://')) {
-    // Rewrite localhost/127.0.0.1 references to the configured remote backend
-    const isLocalBackend = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
-    if (isLocalBackend) {
-      const remoteBase = base && !base.includes('localhost') && !base.includes('127.0.0.1')
-        ? base
-        : 'https://framehouse-r7yy.onrender.com';
-      return url.replace(/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, remoteBase);
-    }
-
-    // Mixed content guard: if the page is HTTPS and the URL is HTTP, upgrade it.
-    // This covers any http:// backend URL returned when running on an HTTPS host.
-    if (
-      url.startsWith('http://') &&
-      typeof window !== 'undefined' &&
-      window.location.protocol === 'https:'
-    ) {
-      return url.replace(/^http:\/\//, 'https://');
-    }
-
-    return url;
+  // Rewrite localhost / 127.0.0.1 to remote backend regardless of protocol
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)) {
+    return url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, REMOTE_BACKEND);
   }
 
-  // Relative URL — prefix with the configured backend base
+  // Mixed-content guard: HTTP URL on an HTTPS page → upgrade to HTTPS
+  if (url.startsWith('http://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return url.replace(/^http:\/\//, 'https://');
+  }
+
+  // Relative URL → prepend backend base
   if (url.startsWith('/')) {
-    return base ? `${base}${url}` : url;
+    return `${REMOTE_BACKEND}${url}`;
   }
 
   return url;
 }
+
+// ─── Deep-rewrite all string values in an API response object ─────────────────
+// Walks the entire response body and rewrites any string value that looks like
+// a localhost mock-view/mock-upload URL. This fixes URLs baked into DB records
+// from previous server restarts where SERVER_URL was not set.
+
+function rewriteUrls(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(rewriteUrls);
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'string') {
+      result[k] = resolveImageUrl(v);
+    } else if (v && typeof v === 'object') {
+      result[k] = rewriteUrls(v);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
+export const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+
+api.interceptors.request.use((config) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('framehouse_token') : null;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// Response interceptor: rewrite every localhost URL in every API response
+// before it reaches React components. Covers URLs stored in DB records too.
+api.interceptors.response.use((response) => {
+  if (response.data && typeof response.data === 'object') {
+    response.data = rewriteUrls(response.data);
+  }
+  return response;
+});
+
+export const unwrap = (request) => request.then((response) => response.data);
 
 export const authApi = {
   me: () => unwrap(api.get('/auth/me')),
